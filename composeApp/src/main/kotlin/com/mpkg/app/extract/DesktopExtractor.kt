@@ -2,7 +2,6 @@ package com.mpkg.app.extract
 
 import com.doubao.repkg.core.AssetKind
 import com.doubao.repkg.core.Extractor
-import com.doubao.repkg.core.ExtractProgress
 import com.doubao.repkg.core.PkgArchive
 import com.doubao.repkg.core.PkgEntry
 import com.doubao.repkg.core.PkgReader
@@ -68,6 +67,17 @@ class TexFileAnalysis(
 )
 
 /**
+ * 阶段级进度回调。
+ *
+ * core 的解码是单次不可中断调用，拿不到块级进度，因此按**文件阶段**汇报
+ * （任务卡 T2.4 的注意事项明确允许「按文件阶段计算」），UI 侧再做平滑动画，
+ * 保证不会出现 0% 直接跳 100%。
+ */
+fun interface StageProgress {
+    fun onStage(fraction: Float, stage: String)
+}
+
+/**
  * 桌面端解码适配层：壳层与 core 之间的唯一解码入口。
  *
  * 职责边界（见《02 · 架构与目录结构》第 1 节）：
@@ -88,18 +98,21 @@ object DesktopExtractor {
      * 分析一个 `.mpkg` / `.pkg`。
      *
      * @param file     包文件
-     * @param progress 逐条目进度回调（条目数级，够 UI 平滑推进）
+     * @param progress 阶段进度回调（0..1 + 阶段文案）
      */
-    fun analyzePackage(file: File, progress: ExtractProgress? = null): PackageAnalysis {
+    fun analyzePackage(file: File, progress: StageProgress? = null): PackageAnalysis {
+        progress?.onStage(0.02f, "打开文件")
         java.nio.channels.FileChannel.open(file.toPath(), java.nio.file.StandardOpenOption.READ).use { channel ->
             val src = com.doubao.repkg.core.ChannelSeekableData(channel)
             // PkgReader.read 只读 TOC（小前缀），不会把数据区拉进内存。
             val archive: PkgArchive = PkgReader.read(src)
+            progress?.onStage(0.08f, "解析包结构（${archive.entries.size} 个条目）")
 
             val largeMp4 = archive.entries
                 .filter { it.extension == ".mp4" }
                 .maxByOrNull { it.length }
             if (largeMp4 != null && largeMp4.length >= STREAM_COPY_THRESHOLD) {
+                progress?.onStage(0.85f, "大视频：按包内偏移流式导出")
                 return PackageAnalysis(
                     magic = archive.magic,
                     entryCount = archive.entries.size,
@@ -110,13 +123,25 @@ object DesktopExtractor {
                 )
             }
 
-            val result = Extractor.analyze(src, CoreDecoding.lz4, progress)
+            progress?.onStage(0.12f, "扫描条目并挑选主图")
+            val result = Extractor.analyze(src, CoreDecoding.lz4) { current, total, path ->
+                val fraction = if (total <= 0) 0.5f else current.toFloat() / total
+                progress?.onStage(0.12f + 0.33f * fraction, "扫描条目 $current/$total")
+                if (com.mpkg.app.util.AppLog.debugEnabled) {
+                    com.mpkg.app.util.AppLog.d("扫描 $current/$total $path")
+                }
+            }
+            progress?.onStage(0.50f, if (result.main?.kind == AssetKind.VIDEO) "提取视频字节" else "解码纹理")
+            val main = result.main?.let { toOutputItem(it, progress, 0.50f, 0.88f) }
+            progress?.onStage(0.92f, "准备输出")
+            val preview = result.preview?.let { toOutputItem(it) }
+            progress?.onStage(0.98f, "完成")
             return PackageAnalysis(
                 magic = archive.magic,
                 entryCount = archive.entries.size,
                 isVideo = result.isVideo,
-                main = result.main?.let { toOutputItem(it) },
-                preview = result.preview?.let { toOutputItem(it) },
+                main = main,
+                preview = preview,
                 entries = archive.entries
             )
         }
@@ -200,6 +225,25 @@ object DesktopExtractor {
             else -> throw com.doubao.repkg.core.FormatException("asset has no payload: ${asset.sourceEntry}")
         }
         return OutputItem(asset.kind, asset.fileName, asset.sourceEntry, payload, asset.isPrimary, asset.note)
+    }
+
+    /** 带阶段进度的版本：解码耗时集中在这里，是进度条最需要平滑的一段。 */
+    private fun toOutputItem(
+        asset: com.doubao.repkg.core.ExtractedAsset,
+        progress: StageProgress?,
+        from: Float,
+        to: Float
+    ): OutputItem {
+        if (asset.compressedBytes == null) return toOutputItem(asset)
+        val width = asset.pixelWidth
+        val height = asset.pixelHeight
+        progress?.onStage(from, "解码 ETC2_RGBA8 纹理 ${width}x$height")
+        val argb = CoreDecoding.decodeEtc2(asset.compressedBytes!!, width, height)
+        progress?.onStage(to, "纹理解码完成")
+        return OutputItem(
+            asset.kind, asset.fileName, asset.sourceEntry,
+            OutputPayload.Pixels(argb, width, height), asset.isPrimary, asset.note
+        )
     }
 
     private fun toOutputItem(

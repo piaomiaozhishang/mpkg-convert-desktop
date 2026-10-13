@@ -122,9 +122,9 @@ object CliMain {
         val isVideo: Boolean
 
         if (isPackage) {
-            val analysis = DesktopExtractor.analyzePackage(input) { current, total, path ->
+            val analysis = DesktopExtractor.analyzePackage(input) { fraction, stage ->
                 if (com.mpkg.app.util.AppLog.debugEnabled) {
-                    com.mpkg.app.util.AppLog.d("扫描 $current/$total $path")
+                    com.mpkg.app.util.AppLog.d("阶段 ${(fraction * 100).toInt()}% $stage")
                 }
             }
             System.out.println(

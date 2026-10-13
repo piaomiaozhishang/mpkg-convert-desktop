@@ -1,0 +1,37 @@
+MIT License
+
+Copyright (c) 2026 mpkg 壁纸提取器 (mpkg-tool) contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+第三方代码出处（交接包「许可与出处」一节，原样保留，不得删除或改写）
+
+| 代码 | 出处 | 许可 |
+|---|---|---|
+| core/src/main/kotlin/com/doubao/repkg/core/Dxt.kt | 移植自 RePKG (https://github.com/notscuffed/repkg) 的 S3TC 解压实现，源自 LibSquish | MIT |
+| core/src/main/kotlin/com/doubao/repkg/core/ImageRanker.kt | 移植自社区 dsh-mpkg-wallpaper 插件 | MIT |
+| 其余 core 代码 | 本项目原创（逆向 + Khronos 规范交叉验证） | MIT |
+| composeApp 的 LanczosResampler | 逐位复刻 Pillow (https://python-pillow.org/) 的 Resample.c 定点实现 | MIT-CMU |
+
+格式知识来源：Wallpaper Engine 逆向 + Khronos OpenGL ES 数据格式规范 + Android DEQP
+一致性测试 + yakisoba0728/Waple (https://github.com/yakisoba0728/Waple) 的格式映射。
+
+上游 Android 版：https://github.com/piaomiaozhishang/mpkg-convert

@@ -33,8 +33,11 @@ object LanczosResampler {
 
     /** 对应 C 的 `precompute_coeffs` + `normalize_coeffs_8bpc`。 */
     private fun precompute(inSize: Int, outSize: Int): Coefficients {
-        var filterScale = inSize.toDouble() / outSize
-        if (filterScale < 1.0) filterScale = 1.0
+        // 关键：center 用未钳制的 scale，滤波器宽度用钳制后的 filterScale。
+        // Pillow 里是两个变量（scale / filterscale），放大时二者不同；混用会让
+        // xmax - xmin 变成负数（放大到 12/4 时实测 -5），直接崩在 DoubleArray(xmax)。
+        val scale = inSize.toDouble() / outSize
+        val filterScale = if (scale < 1.0) 1.0 else scale
         val support = SUPPORT * filterScale
         val ksize = Math.ceil(support).toInt() * 2 + 1
 
@@ -43,12 +46,14 @@ object LanczosResampler {
         val step = 1.0 / filterScale
 
         for (xx in 0 until outSize) {
-            val center = (xx + 0.5) * filterScale
+            val center = (xx + 0.5) * scale
             var xmin = (center - support + 0.5).toInt()
             if (xmin < 0) xmin = 0
+            if (xmin > inSize) xmin = inSize
             var xmax = (center + support + 0.5).toInt()
             if (xmax > inSize) xmax = inSize
             xmax -= xmin
+            if (xmax < 0) xmax = 0
 
             val weights = DoubleArray(xmax)
             var sum = 0.0
