@@ -1,0 +1,55 @@
+VERIFICATION.txt
+================
+Reproduce everything below with:
+  python python/extract_original.py "D:\视频制作\5.mpkg" out.png
+  python python/verify.py out.png sample/preview.jpg
+  (cd android && kotlinc *.kt -include-runtime -d tv.jar && java -jar tv.jar ../testdata)
+
+All numbers on this page were produced by an actual run, not copied from notes.
+
+
+1. EXTRACTION  (zero third-party dependencies)
+----------------------------------------------
+input: D:\视频制作\5.mpkg 2862443 bytes
+package entries: 12
+   materials/presets/fireflies.json                                       off=0         len=226
+   materials/presets/firefliestrail.json                                  off=226       len=200
+   materials/workshop/2098048943/presets/trail_1.json                     off=426       len=224
+   materials/【哲风壁纸】二次元-动漫女孩_upscayl_3840px_digital-art-4x.json            off=650       len=315
+   materials/【哲风壁纸】二次元-动漫女孩_upscayl_3840px_digital-art-4x.tex             off=965       len=2403746  <-- texture
+   models/【哲风壁纸】二次元-动漫女孩_upscayl_3840px_digital-art-4x.json               off=2404711   len=128
+   particles/presets/fireflies.json                                       off=2404839   len=2366
+   particles/presets/firefliestrail.json                                  off=2407205   len=1802
+   particles/workshop/2098048943/presets/trail_1.json                     off=2409007   len=1539
+   preview.jpg                                                            off=2410546   len=448223
+   project.json                                                           off=2858769   len=502
+   scene.json                                                             off=2859271   len=2490
+tex: format=5 (ETC2_RGBA8) flags=2 texture=(3840, 2160) image=(3840, 2160) TEXB0004 imageFormat=-1(RAW)
+mip 0: 3840x2160  raw=8294400 bytes  (expected 1 B/px for ETC2: 8294400)
+SAVED: D:\pro-workbuddy\壁纸转原图\handoff\_tmp\out.png 3840x2160 channels=3
+
+
+2. VERIFICATION VS THE PACKAGE'S OWN preview.jpg
+------------------------------------------------
+image = (3840, 2160)   preview = (1024, 1024)
+crop  = x[1254, 3414] y[0, 2160]   (downscaled to 1024)
+NCC  as-decoded  R,G,B = [0.9984, 0.9983, 0.9962]   mean=0.9977   luma=0.9988
+NCC  R/B swapped R,G,B = [0.3514, 0.9983, 0.3559]   mean=0.5685
+VERDICT: PASS (decode matches preview, channel order correct)
+
+
+3. PIXEL HASH vs the known-good 4K PNG  (encoder independent)
+-------------------------------------------------------------
+extract_original.py output : b5d2736c340645bc237c372dfa59b68619fc9c0e0b59bbe1b40fc1cbfbc75dea
+known-good reference       : b5d2736c340645bc237c372dfa59b68619fc9c0e0b59bbe1b40fc1cbfbc75dea
+identical                  : True
+
+
+4. KOTLIN PORT SELF-TEST  (kotlinc 2.0.21 / JRE 17)
+---------------------------------------------------
+TestVectors build 2
+ETC2_RGBA8 vectors : 60 blocks, mismatches = 0
+LZ4 block cases    : 7 cases, mismatches = 0
+end-to-end         : decoded 3840x2160 (8294400 px) in 105 ms
+ALL CHECKS PASSED
+

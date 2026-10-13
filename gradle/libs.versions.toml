@@ -1,0 +1,20 @@
+# 版本目录：所有第三方依赖与插件的唯一版本来源（见《02 · 架构与目录结构》第 6 节）。
+# 构建脚本中禁止出现裸版本号。
+
+[versions]
+kotlin = "2.1.0"
+compose = "1.7.3"
+coroutines = "1.9.0"
+lz4 = "1.8.0"
+junit = "4.13.2"
+
+[libraries]
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
+lz4-java = { module = "org.lz4:lz4-java", version.ref = "lz4" }
+junit = { module = "junit:junit", version.ref = "junit" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose = { id = "org.jetbrains.compose", version.ref = "compose" }
