@@ -1,11 +1,15 @@
 package com.mpkg.app.viewmodel
 
+import com.mpkg.app.AppInfo
 import com.mpkg.app.errors.ErrorMessages
 import com.mpkg.app.history.HistoryEntry
 import com.mpkg.app.history.HistoryStore
+import com.mpkg.app.platform.DesktopIntegration
 import com.mpkg.app.settings.AppSettings
 import com.mpkg.app.settings.SettingsStore
 import com.mpkg.app.settings.WindowState
+import com.mpkg.app.update.UpdateChecker
+import com.mpkg.app.update.UpdateInfo
 import com.mpkg.app.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +19,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /** 左侧导航的三个页面 + 关于页。 */
@@ -23,7 +29,7 @@ enum class Screen(val title: String, val subtitle: String) {
     CONVERT("转换", "拖入 .mpkg / .pkg，自动提取 4K 原图与 MP4"),
     HISTORY("历史记录", "最近的转换结果，点击可定位输出文件"),
     SETTINGS("设置", "输出目录、覆盖策略、并发与外观"),
-    ABOUT("关于", "出处、许可与版本信息")
+    ABOUT("关于", "版本、许可与运行环境")
 }
 
 /**
@@ -56,9 +62,95 @@ class AppViewModel(private val scope: CoroutineScope) {
     private var saveJob: Job? = null
     private var windowSaveJob: Job? = null
     private var thumbnailJob: Job? = null
+    private var updateCheckJob: Job? = null
 
     init {
         scope.launch { refreshThumbnails() }
+        scheduleUpdateChecks()
+    }
+
+    /**
+     * 启动即检查 + 运行期间每 12 小时复查（自动检查关闭时只保留手动检查）。
+     *
+     * 启动检查带一点延迟，先把窗口画出来再弹公告，避免「白窗等网络」。
+     */
+    private fun scheduleUpdateChecks() {
+        val settings = _settings.value
+        val due = System.currentTimeMillis() - settings.lastUpdateCheckAt >= UPDATE_CHECK_INTERVAL_MS
+        if (settings.autoCheckUpdate && due) {
+            scope.launch {
+                delay(STARTUP_CHECK_DELAY_MS)
+                checkForUpdate(manual = false)
+            }
+        }
+        scope.launch {
+            while (isActive) {
+                delay(UPDATE_CHECK_INTERVAL_MS)
+                if (_settings.value.autoCheckUpdate) checkForUpdate(manual = false)
+            }
+        }
+    }
+
+    // --- 检查更新 ---
+
+    private val _updateAvailable = MutableStateFlow<UpdateInfo?>(null)
+
+    /** 待展示的更新公告；null 表示没有。界面据此弹窗。 */
+    val updateAvailable: StateFlow<UpdateInfo?> = _updateAvailable.asStateFlow()
+
+    /**
+     * 检查一次更新。
+     *
+     * @param manual 用户手动点的（设置页按钮）：无论结果如何都给 toast 反馈；
+     *               自动检查只在失败时静默记日志，不打扰用户。
+     */
+    fun checkForUpdate(manual: Boolean) {
+        if (updateCheckJob?.isActive == true) return
+        val settings = _settings.value
+        if (!manual && !settings.autoCheckUpdate) return
+        updateCheckJob = scope.launch {
+            val result = UpdateChecker.check(
+                url = settings.effectiveUpdateCheckUrl(),
+                currentVersion = AppInfo.VERSION
+            )
+            result.onSuccess { info ->
+                updateSettings(quiet = true) { it.copy(lastUpdateCheckAt = System.currentTimeMillis()) }
+                if (info == null) {
+                    if (manual) showToast("当前已是最新版本 v${AppInfo.VERSION}")
+                    return@onSuccess
+                }
+                if (!info.force && info.version == settings.ignoredUpdateVersion) {
+                    if (manual) showToast("发现新版本 ${info.version}（你已选择不再提示）")
+                    return@onSuccess
+                }
+                _updateAvailable.value = info
+            }.onFailure {
+                if (manual) showToast("检查更新失败：请检查网络或更新地址")
+            }
+        }
+    }
+
+    /** 关闭公告（不记住选择，下次检查还会提示）。 */
+    fun dismissUpdate() {
+        _updateAvailable.value = null
+    }
+
+    /** 「忽略新版本（再也不提示）」：记住版本号，后续检查不再弹。 */
+    fun ignoreUpdate(info: UpdateInfo) {
+        updateSettings(quiet = true) { it.copy(ignoredUpdateVersion = info.version) }
+        _updateAvailable.value = null
+        showToast("已忽略版本 ${info.version}，不会再提示")
+    }
+
+    /** 「下载新版本」：优先 update.json 的 downloadUrl，其次设置里的下载地址，最后项目主页。 */
+    fun downloadUpdate(info: UpdateInfo) {
+        val url = info.downloadUrl ?: _settings.value.updateDownloadUrl.ifBlank { null } ?: AppInfo.PROJECT_URL
+        if (DesktopIntegration.openUrl(url)) {
+            showToast("已在浏览器中打开下载页面")
+        } else {
+            showToast("无法打开浏览器，请手动访问：$url")
+        }
+        _updateAvailable.value = null
     }
 
     fun navigate(screen: Screen) {
@@ -108,8 +200,13 @@ class AppViewModel(private val scope: CoroutineScope) {
         showToast("历史记录已清空")
     }
 
-    /** 后台读取历史缩略图到内存，界面只消费不可变 Map。 */
-    private suspend fun refreshThumbnails() {
+    /**
+     * 后台读取历史缩略图到内存，界面只消费不可变 Map。
+     *
+     * 作用域默认跑在 [Dispatchers.Default]（CPU 密集），读文件要显式切到 IO，
+     * 否则几百个小文件读盘会占用计算线程（审查报告 O5）。
+     */
+    private suspend fun refreshThumbnails() = withContext(Dispatchers.IO) {
         val entries = _history.value
         val loaded = HashMap<String, ByteArray>(entries.size)
         entries.forEach { entry ->
@@ -132,6 +229,9 @@ class AppViewModel(private val scope: CoroutineScope) {
     fun thumbnailFile(entry: HistoryEntry): File? = historyStore.thumbnailFile(entry)
 
     fun saveThumbnail(id: String, bytes: ByteArray): String? = historyStore.saveThumbnail(id, bytes)
+
+    /** 缩略图缓存文件名 → 绝对路径；供任务卡片按需读取。 */
+    fun thumbnailPath(name: String): String = File(historyStore.thumbnailDir(), name).absolutePath
 
     /** 打开历史条目的输出文件；文件不存在时提示而不是静默失败。 */
     fun openHistoryEntry(entry: HistoryEntry, onOpen: (File) -> Unit) {
@@ -161,6 +261,12 @@ class AppViewModel(private val scope: CoroutineScope) {
     companion object {
         const val SETTINGS_SAVE_DEBOUNCE_MS = 300L
         const val WINDOW_SAVE_DEBOUNCE_MS = 700L
+
+        /** 自动检查更新间隔：12 小时。 */
+        const val UPDATE_CHECK_INTERVAL_MS = 12L * 60 * 60 * 1000
+
+        /** 启动检查延迟：等窗口出来再查，避免开屏等待网络。 */
+        const val STARTUP_CHECK_DELAY_MS = 1_500L
     }
 }
 

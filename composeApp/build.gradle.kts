@@ -44,7 +44,11 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "mpkg-tool"
             packageVersion = "1.0.0"
-            description = "Wallpaper Engine mpkg/pkg 壁纸提取器"
+            // 描述**必须是纯 ASCII**：Compose 插件用 UTF-8 写 jpackage 的 @argfile，
+            // 而 jpackage 按本机 GBK 读，中文「器」的尾字节 0xA8 会让它抛
+            // MalformedInputException("Input length = 1")，打包直接失败。
+            // 界面里的中文描述在 AppInfo.DESCRIPTION，两边不必一致。
+            description = "Wallpaper Engine mpkg/pkg wallpaper extractor"
             vendor = "mpkg-tool"
             copyright = "MIT License"
             // 安装程序里展示的许可（T4.2 要求许可完整保留）
@@ -79,11 +83,16 @@ compose.desktop {
     }
 }
 
-/** 端到端 CLI（T1.3）：`./gradlew :composeApp:cli --args="sample/texture.tex out.png"`。 */
+/**
+ * 端到端 CLI（T1.3）：`./gradlew :composeApp:cli --args="sample/texture.tex out.png"`。
+ *
+ * 入口直接指向 [CliMain]，不走 MainKt：后者的 isGraphicalLaunch() 会把
+ * 「参数全是已存在的 .mpkg/.pkg」判定为图形启动，命令行里传包文件会弹出窗口（审查报告 O3）。
+ */
 tasks.register<JavaExec>("cli") {
     group = "application"
     description = "运行端到端命令行转换（不打开窗口）"
-    mainClass.set("com.mpkg.app.MainKt")
+    mainClass.set("com.mpkg.app.tools.CliMainKt")
     classpath = sourceSets["main"].runtimeClasspath
     workingDir = rootProject.projectDir
 }

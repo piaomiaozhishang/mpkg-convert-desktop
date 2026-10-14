@@ -83,7 +83,7 @@ class Etc2CpuDecoderTest {
             total++
             val compressed = unhex(parts[1])
             val want = unhex(parts[2])
-            val got = AndroidLz4.decompress(compressed, want.size)
+            val got = com.doubao.repkg.core.DesktopLz4.decompress(compressed, want.size)
             if (!got.contentEquals(want)) {
                 mismatches++
                 println("LZ4 case '${parts[0]}' mismatch")

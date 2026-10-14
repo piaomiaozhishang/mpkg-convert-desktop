@@ -92,10 +92,11 @@ object TexVideoExtractor {
                 }
             }
             4 -> {
-                require(r.readInt32() == 1) { "Unexpected TEX v4 param1" }
-                require(r.readInt32() == 2) { "Unexpected TEX v4 param2" }
+                // 与 TexAssetDecoder 保持一致：用 FormatException，便于上层给出可读文案。
+                if (r.readInt32() != 1) throw FormatException("Unexpected TEX v4 param1")
+                if (r.readInt32() != 2) throw FormatException("Unexpected TEX v4 param2")
                 r.readNString() // condition json
-                require(r.readInt32() == 1) { "Unexpected TEX v4 param3" }
+                if (r.readInt32() != 1) throw FormatException("Unexpected TEX v4 param3")
                 r.readInt32() // width
                 r.readInt32() // height
                 val isLz4 = r.readInt32() == 1

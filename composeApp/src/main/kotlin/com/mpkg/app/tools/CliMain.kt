@@ -84,9 +84,19 @@ object CliMain {
             System.err.println("输入文件不存在: ${input.absolutePath}")
             return EXIT_FAILED
         }
-        positional.getOrNull(1)?.let {
-            val f = File(it)
-            if (it.endsWith("/") || it.endsWith("\\") || f.isDirectory) outDir = f else outName = it
+        positional.getOrNull(1)?.let { spec ->
+            val f = File(spec)
+            when {
+                spec.endsWith("/") || spec.endsWith("\\") || f.isDirectory -> outDir = f
+                // 绝对路径要拆成「目录 + 文件名」：Exporter 内部是 File(outDir, name)，
+                // 而 Windows 下 File(dir, "D:\\...") 会拼出 ".\D:\\..." 这种非法路径，
+                // 结果是明明路径没问题却报「无法写入输出目录」。拖文件到 exe 上就是绝对路径。
+                f.isAbsolute -> {
+                    outDir = f.parentFile
+                    outName = f.name
+                }
+                else -> outName = spec
+            }
         }
 
         return try {

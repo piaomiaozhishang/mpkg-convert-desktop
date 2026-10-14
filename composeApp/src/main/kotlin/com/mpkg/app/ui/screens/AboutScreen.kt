@@ -1,6 +1,7 @@
 package com.mpkg.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.mpkg.app.AppInfo
 import com.mpkg.app.platform.PlatformPaths
@@ -29,21 +31,26 @@ import com.mpkg.app.ui.components.AppButton
 import com.mpkg.app.ui.components.AppCard
 import com.mpkg.app.ui.components.AppIcons
 import com.mpkg.app.ui.components.ButtonKind
-import com.mpkg.app.ui.components.HairlineDivider
 import com.mpkg.app.ui.components.PageHeader
 import com.mpkg.app.ui.theme.MpkgTheme
 
-/** 关于页（任务卡 T4.2）：版本、出处、许可、已知边界，与 README 保持一致。 */
+/**
+ * 关于页（任务卡 T4.2）：版本、许可、已知边界与运行环境。
+ *
+ * 第三方「出处」声明已按用户要求全部移除（原内容有误）；MIT 许可保留。
+ */
 @Composable
 fun AboutScreen(
     onCopyDiagnostics: () -> Unit,
+    onOpenProjectUrl: () -> Unit,
+    onCheckUpdate: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MpkgTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Column(Modifier.padding(horizontal = MpkgTheme.spacing.xl)) {
             Spacer(Modifier.height(MpkgTheme.spacing.l))
-            PageHeader("关于", "出处、许可与版本信息")
+            PageHeader("关于", "版本、许可与运行环境")
             Spacer(Modifier.height(MpkgTheme.spacing.l))
 
             AppCard(Modifier.fillMaxWidth()) {
@@ -86,45 +93,16 @@ fun AboutScreen(
                     )
                     Spacer(Modifier.height(MpkgTheme.spacing.s))
                     Text(
-                        "项目主页：${AppInfo.PROJECT_URL}",
+                        text = AppInfo.PROJECT_URL,
                         color = colors.accent,
-                        fontSize = MpkgTheme.fontSizes.tiny
+                        fontSize = MpkgTheme.fontSizes.tiny,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable { onOpenProjectUrl() }
                     )
-                }
-            }
-
-            Spacer(Modifier.height(MpkgTheme.spacing.l))
-            SectionTitle("许可与出处（MIT 声明原样保留）")
-            AppCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(horizontal = MpkgTheme.spacing.l)) {
-                    AppInfo.ATTRIBUTIONS.forEachIndexed { index, item ->
-                        if (index > 0) HairlineDivider()
-                        Column(Modifier.padding(vertical = MpkgTheme.spacing.m)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    item.name,
-                                    color = colors.textPrimary,
-                                    fontSize = MpkgTheme.fontSizes.body,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    item.license,
-                                    color = colors.textTertiary,
-                                    fontSize = MpkgTheme.fontSizes.tiny
-                                )
-                            }
-                            Text(
-                                item.usage,
-                                color = colors.textSecondary,
-                                fontSize = MpkgTheme.fontSizes.tiny
-                            )
-                            Text(
-                                item.url,
-                                color = colors.accent,
-                                fontSize = MpkgTheme.fontSizes.tiny
-                            )
-                        }
+                    Spacer(Modifier.height(MpkgTheme.spacing.m))
+                    Row(horizontalArrangement = Arrangement.spacedBy(MpkgTheme.spacing.s)) {
+                        AppButton("打开项目主页", onOpenProjectUrl, kind = ButtonKind.SECONDARY)
+                        AppButton("检查更新", onCheckUpdate, kind = ButtonKind.SECONDARY)
                     }
                 }
             }
@@ -173,7 +151,7 @@ fun AboutScreen(
 @Composable
 private fun SectionTitle(text: String) {
     Text(
-        text,
+        text = text,
         color = MpkgTheme.colors.textTertiary,
         fontSize = MpkgTheme.fontSizes.tiny,
         fontWeight = FontWeight.Medium,

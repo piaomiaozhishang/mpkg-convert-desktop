@@ -84,29 +84,24 @@ object ImageRanker {
         if (total == 0) return false
 
         // Deterministic stride sampling (stable, no RNG needed).
+        // 采样下标用 idx = k * step 直接算出来，不为 4K 大图额外分配一份下标数组。
         val n = minOf(2000, total)
         val step = (total / n).coerceAtLeast(1)
+        val actual = minOf(n, (total + step - 1) / step)
         var gray = 0
         var sr = 0L; var sg = 0L; var sb = 0L
-        val sampled = ArrayList<Int>(n)
-        var k = 0
-        var idx = 0
-        while (k < n && idx < total) {
-            sampled.add(idx)
-            val o = idx * 4
+        for (k in 0 until actual) {
+            val o = (k * step) * 4
             val r = rgba[o].toInt() and 0xFF
             val g = rgba[o + 1].toInt() and 0xFF
             val b = rgba[o + 2].toInt() and 0xFF
             sr += r; sg += g; sb += b
             if (maxOf(r, g, b) - minOf(r, g, b) <= 24) gray++
-            k++
-            idx += step
         }
-        val actual = sampled.size
         val mr = sr / actual; val mg = sg / actual; val mb = sb / actual
         var v = 0.0
-        for (i in sampled) {
-            val o = i * 4
+        for (k in 0 until actual) {
+            val o = (k * step) * 4
             v += Math.abs((rgba[o].toInt() and 0xFF) - mr) +
                     Math.abs((rgba[o + 1].toInt() and 0xFF) - mg) +
                     Math.abs((rgba[o + 2].toInt() and 0xFF) - mb)

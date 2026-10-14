@@ -66,7 +66,9 @@ class HistoryStore(
             }
         }
         entries.sortByDescending { it.timestamp }
-        pruneThumbnails()
+        // 只做内存里的淘汰计算，不落盘：「读」接口产生「写」副作用会让 AppViewModel
+        // 构造时就去碰磁盘，也会让一次加载写两遍 history.json（审查报告 M8）。
+        pruneThumbnails(persist = false)
         return entries.toList()
     }
 
@@ -119,8 +121,12 @@ class HistoryStore(
 
     fun thumbnailDir(): File = thumbDir
 
-    /** 超过上限时按最后使用时间淘汰。 */
-    fun pruneThumbnails() {
+    /**
+     * 超过上限时按最后使用时间淘汰。
+     *
+     * @param persist 是否把淘汰结果写回磁盘；加载路径传 false，见 [load]。
+     */
+    fun pruneThumbnails(persist: Boolean = true) {
         val withThumbs = entries.filter { it.thumbFileName != null }
         if (withThumbs.size <= maxThumbnails) return
         val doomed = withThumbs.sortedBy { it.thumbLastUsed }.take(withThumbs.size - maxThumbnails)
@@ -131,7 +137,7 @@ class HistoryStore(
                 entries[i] = entries[i].copy(thumbFileName = null)
             }
         }
-        persist()
+        if (persist) persist()
     }
 
     private fun deleteThumb(name: String) {

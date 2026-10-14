@@ -264,8 +264,11 @@ object Etc2CpuDecoder {
         var p = 0
         for (by in 0 until bh) {
             for (bx in 0 until bw) {
-                // tolerate a truncated stream for the very last block
-                if (p + 16 > data.size) return out
+                // 数据不足时必须报错：静默返回会产出「下半张全黑」的图，
+                // 比报错更难排查（验收要求截断文件「报错不崩」，不是「假装成功」）。
+                if (p + 16 > data.size) {
+                    throw FormatException("ETC2 数据不足：需要 ${bw * bh * 16} 字节，实际 ${data.size}")
+                }
                 decodeBlock(data, p, blk, 0)
                 p += 16
                 for (row in 0 until 4) {

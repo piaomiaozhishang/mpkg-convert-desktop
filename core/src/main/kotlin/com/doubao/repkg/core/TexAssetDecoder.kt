@@ -35,6 +35,23 @@ data class TexPeek(
 )
 
 /**
+ * Byte range of the first mipmap payload inside a ".tex".
+ *
+ * Lets the caller copy the payload straight out of the container (seek + buffered
+ * copy) instead of loading a multi-hundred-MB video texture into memory.
+ */
+data class MipSlice(
+    /** Offset of the payload, relative to the start of the .tex. */
+    val offset: Long,
+    /** Stored length in bytes (compressed length when [isLz4]). */
+    val length: Long,
+    val isLz4: Boolean,
+    val isVideo: Boolean,
+    val width: Int,
+    val height: Int
+)
+
+/**
  * Decodes a Wallpaper Engine ".tex" texture into either its embedded MP4
  * (video wallpaper) or its first image (static wallpaper).
  *
@@ -70,6 +87,30 @@ object TexAssetDecoder {
         )
     }
 
+    /**
+     * Reads only the header and returns the byte range of the first mipmap payload.
+     *
+     * Used to export big (video) payloads by range copy: the caller never loads the
+     * whole texture. Returns null when the header does not fit in [texBytes] or when
+     * there is no mipmap — the caller then falls back to a full read.
+     */
+    fun peekMipSlice(texBytes: ByteArray, mobileLayout: Boolean = false): MipSlice? {
+        val p = parse(texBytes, wantBytes = false, lz4 = null, mobileLayout = mobileLayout) ?: return null
+        if (p.mipByteCount <= 0) return null
+        return MipSlice(
+            offset = p.mipOffset,
+            length = p.mipByteCount.toLong(),
+            isLz4 = p.mipIsLz4,
+            isVideo = p.isVideo,
+            width = p.mipWidth,
+            height = p.mipHeight
+        )
+    }
+
+    /** True when [head] (at least 12 bytes) carries one of the known MP4 brands. */
+    fun isMp4Header(head: ByteArray): Boolean =
+        head.size >= 12 && String(head, 4, 8, Charsets.US_ASCII).lowercase() in MP4_BRANDS
+
     fun decode(
         texBytes: ByteArray,
         lz4: Lz4BlockDecompressor? = null,
@@ -103,8 +144,8 @@ object TexAssetDecoder {
         }
 
         // 2) ETC2_EAC (Format=5): the standard mobile static-texture format.
-        //    Core (pure JVM) cannot decode it; hand the block stream to the
-        //    platform GPU (OpenGL ES 3.0) for decoding.
+        //    Core (pure JVM) only carries the block stream; decoding is the
+        //    platform's job (GPU on Android, Etc2CpuDecoder on the desktop).
         if (p.texFormat == TEX_FORMAT_ETC2_EAC) {
             return TexAsset.Image(
                 width = p.mipWidth,
@@ -150,7 +191,12 @@ object TexAssetDecoder {
         val isVideo: Boolean,
         val mipWidth: Int,
         val mipHeight: Int,
-        val mipBytes: ByteArray?
+        val mipBytes: ByteArray?,
+        /** Offset of the mip payload, relative to the start of the .tex. */
+        val mipOffset: Long = 0,
+        /** Stored (possibly compressed) length of the mip payload. */
+        val mipByteCount: Int = 0,
+        val mipIsLz4: Boolean = false
     )
 
     private fun parse(
@@ -231,10 +277,12 @@ object TexAssetDecoder {
                 byteCount = r.readInt32()
             }
             4 -> {
-                require(r.readInt32() == 1) { "Unexpected TEX v4 param1" }
-                require(r.readInt32() == 2) { "Unexpected TEX v4 param2" }
+                // 用 FormatException 而不是 require()：后者抛 IllegalArgumentException，
+                // 会被上层当成「未知错误」，用户拿不到「格式不支持」的提示。
+                if (r.readInt32() != 1) throw FormatException("Unexpected TEX v4 param1")
+                if (r.readInt32() != 2) throw FormatException("Unexpected TEX v4 param2")
                 r.readNString()
-                require(r.readInt32() == 1) { "Unexpected TEX v4 param3" }
+                if (r.readInt32() != 1) throw FormatException("Unexpected TEX v4 param3")
                 mipWidth = r.readInt32()
                 mipHeight = r.readInt32()
                 isLz4 = r.readInt32() == 1
@@ -244,12 +292,13 @@ object TexAssetDecoder {
             else -> throw FormatException("Unsupported TEX container version $version")
         }
 
+        val mipOffset = r.position
         val isVideo = headerSaysVideo || containerSaysVideo || imageFormat == 35
 
         if (!wantBytes) {
             return Parsed(
                 texFormat, imageWidth, imageHeight, imageFormat, isVideo,
-                mipWidth, mipHeight, null
+                mipWidth, mipHeight, null, mipOffset, byteCount, isLz4
             )
         }
 
@@ -261,7 +310,7 @@ object TexAssetDecoder {
 
         return Parsed(
             texFormat, imageWidth, imageHeight, imageFormat, isVideo,
-            mipWidth, mipHeight, mipBytes
+            mipWidth, mipHeight, mipBytes, mipOffset, byteCount, isLz4
         )
     }
 

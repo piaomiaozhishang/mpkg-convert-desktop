@@ -5,6 +5,8 @@
 
 - 目标平台：Windows / macOS / Linux
 - 技术栈：Kotlin 2.1 + Compose Multiplatform Desktop 1.7（Material3）+ JDK 17
+- 本项目主页：<https://github.com/piaomiaozhishang/mpkg-convert-desktop>
+- 检查更新地址（Gitee，国内可直接访问）：<https://gitee.com/piaomiaozhishang/mpkg-convert-desktop/raw/master/update.json>
 - 上游 Android 版：<https://github.com/piaomiaozhishang/mpkg-convert>
 - 交接包原始说明：见 [docs/交接包README.md](docs/交接包README.md)
 
@@ -32,6 +34,19 @@ java -jar composeApp/build/libs/mpkg-cli.jar --help
 
 环境要求：**JDK 17**（必须含 `jpackage`）；Gradle 由 Wrapper 提供，无需手动安装。
 详见 [01-环境搭建指南.md](01-环境搭建指南.md)。
+
+---
+
+## 下载与使用
+
+到 [Releases](https://github.com/piaomiaozhishang/mpkg-convert-desktop/releases) 下载对应平台的压缩包：
+
+| 平台 | 文件 | 使用方式 |
+|---|---|---|
+| Windows | `mpkg-tool-windows-x64.zip` | 解压后**整个目录**一起拷贝，双击 `mpkg-tool\mpkg-tool.exe` 即可，无需安装 JDK（运行时已内置） |
+
+> app-image 是「绿色目录」：`runtime`、`app` 与 exe 不能拆散，可随意搬位置、发给别人。
+> 安装版（MSI）需要 WiX 3.x，本仓库不提供。
 
 ---
 
@@ -126,14 +141,46 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-release.ps1
 > **Windows + 中文项目路径的坑**：Compose Gradle 插件用 UTF-8 写 jlink 的 `@argfile`，
 > 而 jlink 按系统本地编码（简体中文 Windows 是 GBK）读取，中文路径会变成乱码、
 > 产物落到一个乱码目录里并报 `directory already exists`。
-> 解决办法是让构建走一个纯 ASCII 路径，例如建立目录联接后从联接路径构建：
+> 解决办法是让构建走一个纯 ASCII 路径，例如建立目录联接后从联接路径构建
+> **（必须用 PowerShell 或 cmd：Git Bash 派生子进程时会把联接解析回真实路径， tricks 失效）**：
 >
 > ```cmd
 > mklink /J D:\mpkg-ascii "D:\pro-workbuddy\mpkg转换windows端"
 > cd /d D:\mpkg-ascii && gradlew.bat :composeApp:createDistributable
 > ```
+>
+> 另外，重新打包前确认没有正在运行的 `mpkg-tool.exe`：运行中的程序会占住
+> `binaries\main\app` 里的 jar，jpackage 删不掉旧产物会报
+> `Unable to delete directory ... New files were found`。
 
 输出目录：`composeApp/build/compose/binaries/`。
+
+---
+
+## 检查更新
+
+- 默认每 **12 小时** 自动检查一次（设置里可关），打开软件稍后也会检查一次；发现新版本弹公告
+- 检查地址走 **Gitee**（`update.json` 放在仓库根目录随仓库发布）：很多人连不上 GitHub raw，Gitee 国内可直接访问
+- 版本比较为逐段数值比较（`1.0.10 > 1.0.9`）
+- 公告提供「下载新版本」/「忽略新版本（再也不提示）」；设置页还可改检查地址、下载地址、重新提示已忽略版本
+- 「下载新版本」地址优先级：`update.json` 的 `downloadUrl` → 设置里的下载地址 → 项目主页
+
+### 发布新版本
+
+1. 改 `composeApp/src/main/kotlin/com/mpkg/app/AppInfo.kt` 里的 `VERSION`
+2. `./gradlew :composeApp:createDistributable` 打出新包，上传到下载地址（GitHub Releases / 网盘均可）
+3. 更新仓库根目录的 `update.json` 并推送到 Gitee：
+
+```json
+{
+  "version": "1.0.1",
+  "downloadUrl": "https://你的下载地址/mpkg-tool-windows-x64.zip",
+  "notes": "本次更新说明，展示在公告窗里",
+  "force": false
+}
+```
+
+也支持纯文本格式：第一行写版本号即可（下载地址回到设置里配）。`"force": true` 时公告不可忽略、不可关闭（强制更新）。
 
 ---
 

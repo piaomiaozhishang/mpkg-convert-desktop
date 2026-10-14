@@ -39,8 +39,15 @@ data class ConversionTask(
     val outputs: List<TaskOutput> = emptyList(),
     val errorTitle: String? = null,
     val errorDetail: String? = null,
-    /** 包内 preview 图的原始字节，供卡片缩略图使用（不做纹理解码）。 */
-    val thumbnailBytes: ByteArray? = null,
+    /**
+     * 缩略图在缓存目录里的绝对路径；包内 preview 的字节直接落盘，不常驻任务对象。
+     *
+     * 背景：原先这里存的是 `ByteArray`，一张 preview 可达数百 KB，任务列表会随文件数
+     * 线性吃掉内存（审查报告 O4）。改成路径后，界面按需读、读不到就画占位图。
+     */
+    val thumbnailPath: String? = null,
+    /** 结果备注，例如「已跳过（目标已存在）」。正常完成时为空。 */
+    val note: String? = null,
     val elapsedMs: Long = 0L
 ) {
     val removable: Boolean get() = status == TaskStatus.WAITING || status == TaskStatus.DONE ||

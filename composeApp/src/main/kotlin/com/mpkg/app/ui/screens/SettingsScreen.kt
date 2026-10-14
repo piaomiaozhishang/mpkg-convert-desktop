@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Slider
@@ -25,14 +27,23 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mpkg.app.AppInfo
 import com.mpkg.app.export.OverwritePolicy
 import com.mpkg.app.settings.AppSettings
 import com.mpkg.app.settings.DecodeMode
@@ -53,6 +64,8 @@ fun SettingsScreen(
     settings: AppSettings,
     onChange: ((AppSettings) -> AppSettings) -> Unit,
     onChooseOutputDir: () -> Unit,
+    onCheckUpdate: () -> Unit,
+    onOpenProjectUrl: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MpkgTheme.colors
@@ -171,7 +184,116 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(Modifier.height(MpkgTheme.spacing.l))
+
+            SectionCard("更新") {
+                SettingRow("项目地址", "点击地址用浏览器打开") {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = AppInfo.PROJECT_URL,
+                            color = colors.accent,
+                            fontSize = MpkgTheme.fontSizes.tiny,
+                            textDecoration = TextDecoration.Underline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable { onOpenProjectUrl() }
+                        )
+                        Spacer(Modifier.height(MpkgTheme.spacing.xs))
+                        AppButton("打开主页", onOpenProjectUrl, kind = ButtonKind.SECONDARY)
+                    }
+                }
+                HairlineDivider()
+                SettingRow(
+                    "检查更新",
+                    "从 Gitee 读取版本信息 · ${formatLastCheck(settings.lastUpdateCheckAt)}"
+                ) {
+                    AppButton("检查更新", onCheckUpdate, kind = ButtonKind.SECONDARY)
+                }
+                HairlineDivider()
+                SettingRow("自动检查更新", "每 12 小时检查一次；打开软件时如果到期也会检查并弹公告") {
+                    AppSwitch(settings.autoCheckUpdate) { value -> onChange { it.copy(autoCheckUpdate = value) } }
+                }
+                HairlineDivider()
+                SettingRow("更新检查地址", "Gitee 上的版本文件地址（JSON 或纯文本版本号），修改后自动保存") {
+                    UrlField(
+                        value = settings.updateCheckUrl,
+                        onValueChange = { value -> onChange { it.copy(updateCheckUrl = value) } },
+                        onReset = { onChange { it.copy(updateCheckUrl = AppSettings.DEFAULT_UPDATE_CHECK_URL) } },
+                        resetVisible = settings.updateCheckUrl != AppSettings.DEFAULT_UPDATE_CHECK_URL
+                    )
+                }
+                HairlineDivider()
+                SettingRow("新版本下载地址", "可留空：留空时用版本文件里的下载链接，再为空则打开项目主页") {
+                    UrlField(
+                        value = settings.updateDownloadUrl,
+                        onValueChange = { value -> onChange { it.copy(updateDownloadUrl = value) } },
+                        onReset = { onChange { it.copy(updateDownloadUrl = "") } },
+                        resetVisible = settings.updateDownloadUrl.isNotEmpty()
+                    )
+                }
+            }
+
             Spacer(Modifier.height(MpkgTheme.spacing.xl))
+        }
+    }
+}
+
+/** 上次检查时间的人话描述。 */
+private fun formatLastCheck(at: Long): String {
+    if (at <= 0L) return "从未检查"
+    val minutes = (System.currentTimeMillis() - at) / 60_000L
+    return when {
+        minutes < 1 -> "刚刚检查过"
+        minutes < 60 -> "$minutes 分钟前检查过"
+        minutes < 60 * 24 -> "${minutes / 60} 小时前检查过"
+        else -> "${minutes / (60 * 24)} 天前检查过"
+    }
+}
+
+/** 设置里的地址输入框：输入即生效，右侧带「恢复默认」。 */
+@Composable
+private fun UrlField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onReset: () -> Unit,
+    resetVisible: Boolean
+) {
+    val colors = MpkgTheme.colors
+    // 不用 remember(value) 做 key：每次按键都会写回设置、触发重组，
+    // 以 value 为 key 会让光标每敲一个字就跳到末尾。改为本地状态 +
+    // LaunchedEffect 同步外部改动（恢复默认 / 设置被其它路径改写）。
+    var text by remember { mutableStateOf(value) }
+    LaunchedEffect(value) {
+        if (value != text) text = value
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = {
+                text = it
+                onValueChange(it)
+            },
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = MpkgTheme.fontSizes.tiny,
+                color = colors.textPrimary
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = colors.accent,
+                unfocusedBorderColor = colors.borderStrong,
+                focusedTextColor = colors.textPrimary,
+                unfocusedTextColor = colors.textPrimary,
+                cursorColor = colors.accent,
+                focusedContainerColor = colors.surface,
+                unfocusedContainerColor = colors.surface
+            ),
+            modifier = Modifier.width(260.dp)
+        )
+        if (resetVisible) {
+            Spacer(Modifier.width(MpkgTheme.spacing.s))
+            TextButton(onClick = onReset) {
+                Text("恢复默认", color = colors.textSecondary, fontSize = MpkgTheme.fontSizes.tiny)
+            }
         }
     }
 }

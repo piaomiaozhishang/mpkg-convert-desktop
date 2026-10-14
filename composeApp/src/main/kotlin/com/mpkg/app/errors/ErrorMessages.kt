@@ -18,6 +18,7 @@ object ErrorMessages {
     const val NO_CONTENT = "该壁纸包内没有可提取的图片或视频"
     const val WRITE_FAILED = "无法写入输出目录，请检查权限或更换目录"
     const val READ_FAILED = "无法读取该文件，请检查文件是否存在或被占用"
+    const val DISK_FULL = "磁盘空间不足，请清理后重试"
     const val LZ4_UNAVAILABLE = "压缩数据无法解压，文件可能损坏"
     const val UNKNOWN = "处理失败"
 
@@ -27,10 +28,26 @@ object ErrorMessages {
         is java.io.FileNotFoundException -> READ_FAILED
         is java.nio.file.AccessDeniedException -> WRITE_FAILED
         is java.nio.file.NoSuchFileException -> READ_FAILED
-        is java.io.IOException -> WRITE_FAILED
         is OutOfMemoryError -> "内存不足，请关闭其它程序或减小并发数"
         is FormatException -> describeFormat(error.message.orEmpty())
+        // IOException 一律说成「无法写入」会误导：磁盘满、源文件被占用都是读侧问题。
+        is java.io.IOException -> describeIo(error)
         else -> UNKNOWN
+    }
+
+    /**
+     * IOException 的细分。
+     *
+     * 兜底仍是 WRITE_FAILED（历史上绝大多数 IOException 出现在写盘阶段），
+     * 但磁盘满与源文件读取失败要先被挑出来，否则用户会去查一个根本没问题的输出目录。
+     */
+    private fun describeIo(error: java.io.IOException): String {
+        val m = error.message.orEmpty().lowercase()
+        return when {
+            "no space" in m || "not enough space" in m || "没有足够的空间" in m -> DISK_FULL
+            m.startsWith("读取") -> READ_FAILED
+            else -> WRITE_FAILED
+        }
     }
 
     /** core 的 FormatException message → 中文文案。消息匹配不区分大小写。 */

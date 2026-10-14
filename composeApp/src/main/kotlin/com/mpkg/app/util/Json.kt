@@ -117,16 +117,27 @@ object JsonParser {
         return value
     }
 
-    /** 解析失败时返回 null，便于调用方回退到默认值。 */
+    /**
+     * 解析失败时返回 null，便于调用方回退到默认值。
+     *
+     * 这里连 [StackOverflowError] 一起兜住：SettingsStore 的契约是「设置文件损坏也绝不能
+     * 让应用起不来」，而 Error 不属于 Exception，只 catch Exception 会让它逃逸到启动流程。
+     * [readValue] 的深度上限已经挡掉了绝大多数情况，这一层只是最后一道保险。
+     */
     fun parseOrNull(text: String): JsonValue? = try {
         parse(text)
     } catch (e: Exception) {
         AppLog.w("JSON 解析失败，已回退默认值: ${e.message}")
         null
+    } catch (e: StackOverflowError) {
+        AppLog.w("JSON 嵌套过深，已回退默认值")
+        null
     }
 
     private class Cursor(val text: String) {
         var index = 0
+        /** 当前嵌套层数，用于挡住损坏/恶意的超深 JSON（见 [readValue]）。 */
+        var depth = 0
         fun atEnd() = index >= text.length
         fun peek(): Char = text[index]
         fun next(): Char = text[index++]
@@ -141,15 +152,28 @@ object JsonParser {
         }
     }
 
+    /**
+     * 读一个值。
+     *
+     * 递归下降天然受栈深限制：没有深度上限时，一个几 KB 的 `[[[[…]]]]` 就能让
+     * `StackOverflowError` 逃逸出 `parseOrNull` 的 `catch (e: Exception)`，
+     * 结果是设置文件一坏应用就起不来。这里显式限深，超限按**解析失败**处理。
+     */
     private fun readValue(c: Cursor): JsonValue {
         require(!c.atEnd()) { "JSON 意外结束" }
-        return when (c.peek()) {
-            '{' -> readObject(c)
-            '[' -> readArray(c)
-            '"' -> JsonValue.JsonString(readString(c))
-            't', 'f' -> readBoolean(c)
-            'n' -> readNull(c)
-            else -> readNumber(c)
+        require(c.depth < MAX_DEPTH) { "JSON 嵌套层级超过 $MAX_DEPTH 层，疑似文件损坏" }
+        c.depth++
+        return try {
+            when (c.peek()) {
+                '{' -> readObject(c)
+                '[' -> readArray(c)
+                '"' -> JsonValue.JsonString(readString(c))
+                't', 'f' -> readBoolean(c)
+                'n' -> readNull(c)
+                else -> readNumber(c)
+            }
+        } finally {
+            c.depth--
         }
     }
 
@@ -249,6 +273,9 @@ object JsonParser {
         }
         else -> throw IllegalArgumentException("位置 ${c.index} 期望布尔值")
     }
+
+    /** 允许的最大嵌套层数；本项目 settings/history 的实际深度不超过 4 层。 */
+    private const val MAX_DEPTH = 64
 
     private fun readNull(c: Cursor): JsonValue {
         require(c.text.startsWith("null", c.index)) { "位置 ${c.index} 期望 null" }

@@ -5,6 +5,7 @@ import java.awt.Desktop
 import java.awt.Image
 import java.awt.Toolkit
 import java.io.File
+import java.net.URI
 import javax.imageio.ImageIO
 
 /**
@@ -28,6 +29,41 @@ object DesktopIntegration {
             AppLog.w("打开文件失败 ${file.absolutePath}: ${e.message}")
             openWithSystemCommand(file)
         }
+    }
+
+    /**
+     * 用系统默认浏览器打开网页（项目主页、新版本下载页）。
+     *
+     * 无头环境（测试、CLI）里 Desktop 不可用，直接返回 false，由调用方提示手动访问。
+     */
+    fun openUrl(url: String): Boolean {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return false
+        return try {
+            val uri = URI(trimmed)
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                Desktop.getDesktop().browse(uri)
+                true
+            } else {
+                openUrlWithSystemCommand(trimmed)
+            }
+        } catch (e: Exception) {
+            AppLog.w("打开链接失败 $trimmed: ${e.message}")
+            openUrlWithSystemCommand(trimmed)
+        }
+    }
+
+    private fun openUrlWithSystemCommand(url: String): Boolean = try {
+        val command = when {
+            PlatformPaths.isWindows -> listOf("cmd", "/c", "start", "", url)
+            PlatformPaths.isMac -> listOf("open", url)
+            else -> listOf("xdg-open", url)
+        }
+        ProcessBuilder(command).start()
+        true
+    } catch (e: Exception) {
+        AppLog.e("无法用浏览器打开链接: $url", e)
+        false
     }
 
     /** 在文件管理器里定位到该文件（Windows 用 explorer /select）。 */

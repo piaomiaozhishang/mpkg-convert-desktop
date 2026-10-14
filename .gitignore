@@ -12,6 +12,14 @@ local.properties
 .DS_Store
 Thumbs.db
 
+# Python 参考实现产生的字节码（此前已误入库，见 M10）
+python-reference/__pycache__/
+__pycache__/
+*.pyc
+
+# Kotlin / Gradle 增量缓存
+.kotlin/
+
 # 打包中间产物
 out/
 

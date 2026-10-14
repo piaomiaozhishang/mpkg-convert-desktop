@@ -176,11 +176,15 @@ class PkgExtractorTest {
             "PKGM0019",
             listOf("materials/clip.tex" to makeMobileVideoTex(mp4))
         )
-        val r = Extractor.analyze(ByteArraySeekableData(pkg))
+        val src = ByteArraySeekableData(pkg)
+        val r = Extractor.analyze(src)
         assertTrue(r.isVideo)
         assertNotNull(r.main)
-        // Byte-identical to the embedded MP4 -> playable, not TEX bytes.
-        assertArrayEquals(mp4, r.main!!.bytes)
+        // 视频以「包内字节区间」返回：导出时 seek + 分批复制，几百 MB 也不进内存（红线 #2）。
+        // 按区间取出来的字节必须与内嵌 MP4 完全一致 —— 播放得了，而不是 TEX 原始字节。
+        val offset = r.main!!.sliceOffset
+        assertNotNull(offset)
+        assertArrayEquals(mp4, src.readAt(offset!!, r.main!!.sliceLength.toInt()))
     }
 
     // --- Static wallpaper ---

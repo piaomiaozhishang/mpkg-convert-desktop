@@ -88,11 +88,18 @@ fun interface StageProgress {
  */
 object DesktopExtractor {
 
-    /** 超过该体积的包内 `.mp4` 走 seek + 流式复制，不整读内存。 */
-    private const val STREAM_COPY_THRESHOLD = 32L * 1024 * 1024
+    /** 只用来读 `.tex` 头部；视频纹理的头通常远小于此。 */
+    private const val TEX_HEADER_PREFIX = 64 * 1024
 
-    private val plainImageExtensions =
-        setOf(".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tga", ".dds")
+    /**
+     * 打开源文件。失败时统一包装成「读取源文件失败」，让 [com.mpkg.app.errors.ErrorMessages]
+     * 能把**读侧**故障和写盘故障区分开（审查报告 M5）。
+     */
+    private fun openSource(file: File): java.nio.channels.FileChannel = try {
+        java.nio.channels.FileChannel.open(file.toPath(), java.nio.file.StandardOpenOption.READ)
+    } catch (e: java.io.IOException) {
+        throw java.io.IOException("读取源文件失败: ${file.absolutePath}", e)
+    }
 
     /**
      * 分析一个 `.mpkg` / `.pkg`。
@@ -102,26 +109,11 @@ object DesktopExtractor {
      */
     fun analyzePackage(file: File, progress: StageProgress? = null): PackageAnalysis {
         progress?.onStage(0.02f, "打开文件")
-        java.nio.channels.FileChannel.open(file.toPath(), java.nio.file.StandardOpenOption.READ).use { channel ->
+        openSource(file).use { channel ->
             val src = com.doubao.repkg.core.ChannelSeekableData(channel)
             // PkgReader.read 只读 TOC（小前缀），不会把数据区拉进内存。
             val archive: PkgArchive = PkgReader.read(src)
             progress?.onStage(0.08f, "解析包结构（${archive.entries.size} 个条目）")
-
-            val largeMp4 = archive.entries
-                .filter { it.extension == ".mp4" }
-                .maxByOrNull { it.length }
-            if (largeMp4 != null && largeMp4.length >= STREAM_COPY_THRESHOLD) {
-                progress?.onStage(0.85f, "大视频：按包内偏移流式导出")
-                return PackageAnalysis(
-                    magic = archive.magic,
-                    entryCount = archive.entries.size,
-                    isVideo = true,
-                    main = streamSliceFor(file, largeMp4),
-                    preview = findPlainPreview(src, archive),
-                    entries = archive.entries
-                )
-            }
 
             progress?.onStage(0.12f, "扫描条目并挑选主图")
             val result = Extractor.analyze(src, CoreDecoding.lz4) { current, total, path ->
@@ -132,9 +124,10 @@ object DesktopExtractor {
                 }
             }
             progress?.onStage(0.50f, if (result.main?.kind == AssetKind.VIDEO) "提取视频字节" else "解码纹理")
-            val main = result.main?.let { toOutputItem(it, progress, 0.50f, 0.88f) }
+            // 视频由 core 描述成「包内字节区间」，这里转成 StreamSlice，导出时才真正读盘。
+            val main = result.main?.let { toOutputItem(it, file, progress, 0.50f, 0.88f) }
             progress?.onStage(0.92f, "准备输出")
-            val preview = result.preview?.let { toOutputItem(it) }
+            val preview = result.preview?.let { toOutputItem(it, file) }
             progress?.onStage(0.98f, "完成")
             return PackageAnalysis(
                 magic = archive.magic,
@@ -147,9 +140,50 @@ object DesktopExtractor {
         }
     }
 
-    /** 分析一个独立的 `.tex` 文件（整文件读入：纹理本身不是几百 MB 的视频容器）。 */
+    /**
+     * 分析一个独立的 `.tex` 文件。
+     *
+     * 先只读头部前缀：未压缩的视频纹理直接按字节区间交给导出器流式复制，
+     * 只有确需解码（含 LZ4 压缩的）纹理才整文件读入。
+     */
     fun analyzeTexFile(file: File): TexFileAnalysis {
-        val bytes = file.readBytes()
+        val size = file.length()
+        if (size > TEX_HEADER_PREFIX) {
+            openSource(file).use { channel ->
+                val src = com.doubao.repkg.core.ChannelSeekableData(channel)
+                val head = src.readAt(0, TEX_HEADER_PREFIX)
+                val slice = try {
+                    TexAssetDecoder.peekMipSlice(head, mobileLayout = false)
+                } catch (e: Exception) {
+                    null
+                }
+                if (slice != null && slice.isVideo && !slice.isLz4) {
+                    val length = minOf(slice.length, size - slice.offset)
+                    if (length > 0 && slice.offset + 12 <= size &&
+                        TexAssetDecoder.isMp4Header(src.readAt(slice.offset, 12))
+                    ) {
+                        return TexFileAnalysis(
+                            isVideo = true,
+                            main = OutputItem(
+                                kind = AssetKind.VIDEO,
+                                suggestedName = file.nameWithoutExtension + ".mp4",
+                                sourceEntry = file.name,
+                                payload = OutputPayload.StreamSlice(file, slice.offset, length),
+                                isPrimary = true,
+                                note = "视频（字节导出）"
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 静态纹理 / LZ4 压缩的视频：必须完整读入才能解码。
+        val bytes = try {
+            file.readBytes()
+        } catch (e: java.io.IOException) {
+            throw java.io.IOException("读取源文件失败: ${file.absolutePath}", e)
+        }
         val asset = TexAssetDecoder.decode(bytes, CoreDecoding.lz4, mobileLayout = false)
         if (asset == null) {
             // 能读出头部却解不出内容时，给出「格式不支持」而不是笼统的「没有内容」。
@@ -178,40 +212,13 @@ object DesktopExtractor {
         }
     }
 
-    /** 只读包内 preview.* 条目的字节（不解码纹理、不加载整个包）。 */
-    private fun findPlainPreview(
-        src: com.doubao.repkg.core.SeekableData,
-        archive: PkgArchive
-    ): OutputItem? {
-        val entry = archive.entries.firstOrNull {
-            it.path.contains("preview", ignoreCase = true) && it.extension in plainImageExtensions
-        } ?: return null
-        return try {
-            OutputItem(
-                kind = AssetKind.IMAGE,
-                suggestedName = entry.fileName,
-                sourceEntry = entry.path,
-                payload = OutputPayload.Bytes(PkgReader.readEntryBytes(src, entry)),
-                isPrimary = false,
-                note = "预览图"
-            )
-        } catch (e: Exception) {
-            com.mpkg.app.util.AppLog.w("读取预览图失败: ${e.message}")
-            null
-        }
-    }
-
-    private fun streamSliceFor(file: File, entry: PkgEntry): OutputItem = OutputItem(
-        kind = AssetKind.VIDEO,
-        suggestedName = entry.fileName,
-        sourceEntry = entry.path,
-        payload = OutputPayload.StreamSlice(file, entry.dataOffset, entry.length),
-        isPrimary = true,
-        note = "视频（包内流式字节导出）"
-    )
-
-    private fun toOutputItem(asset: com.doubao.repkg.core.ExtractedAsset): OutputItem {
+    private fun toOutputItem(
+        asset: com.doubao.repkg.core.ExtractedAsset,
+        source: File
+    ): OutputItem {
         val payload = when {
+            // 视频：只记录字节区间，导出时 seek + 分批复制（红线 #2）。
+            asset.sliceOffset != null -> OutputPayload.StreamSlice(source, asset.sliceOffset!!, asset.sliceLength)
             asset.bytes != null -> OutputPayload.Bytes(asset.bytes!!)
             asset.pixelsRgba != null -> OutputPayload.Pixels(
                 argb = PngIo.rgbaToArgb(asset.pixelsRgba!!, asset.pixelWidth, asset.pixelHeight),
@@ -227,23 +234,32 @@ object DesktopExtractor {
         return OutputItem(asset.kind, asset.fileName, asset.sourceEntry, payload, asset.isPrimary, asset.note)
     }
 
-    /** 带阶段进度的版本：解码耗时集中在这里，是进度条最需要平滑的一段。 */
+    /**
+     * 带阶段进度的版本。
+     *
+     * 解码耗时集中在这里，是进度条最需要平滑的一段；所有载荷形态都要发前后两条进度，
+     * 否则非 ETC2 的主图（RGBA / DXT）会让进度从 12% 直接跳到 92%。
+     */
     private fun toOutputItem(
         asset: com.doubao.repkg.core.ExtractedAsset,
+        source: File,
         progress: StageProgress?,
         from: Float,
         to: Float
     ): OutputItem {
-        if (asset.compressedBytes == null) return toOutputItem(asset)
-        val width = asset.pixelWidth
-        val height = asset.pixelHeight
-        progress?.onStage(from, "解码 ETC2_RGBA8 纹理 ${width}x$height")
-        val argb = CoreDecoding.decodeEtc2(asset.compressedBytes!!, width, height)
-        progress?.onStage(to, "纹理解码完成")
-        return OutputItem(
-            asset.kind, asset.fileName, asset.sourceEntry,
-            OutputPayload.Pixels(argb, width, height), asset.isPrimary, asset.note
-        )
+        val stage = when {
+            asset.sliceOffset != null -> "准备视频字节（${asset.sliceLength / 1024 / 1024} MB）"
+            asset.bytes != null -> "取出已编码内容"
+            asset.compressedBytes != null ->
+                "解码 ETC2_RGBA8 纹理 ${asset.pixelWidth}x${asset.pixelHeight}"
+            asset.pixelsRgba != null ->
+                "转换像素 ${asset.pixelWidth}x${asset.pixelHeight}"
+            else -> "解码纹理"
+        }
+        progress?.onStage(from, stage)
+        val item = toOutputItem(asset, source)
+        progress?.onStage(to, "内容就绪")
+        return item
     }
 
     private fun toOutputItem(

@@ -16,6 +16,13 @@ data class ExtractedAsset(
     val pixelsRgba: ByteArray? = null,
     /** Compressed block stream (ETC2) needing platform GPU decoding. */
     val compressedBytes: ByteArray? = null,
+    /**
+     * Byte range inside the package to copy verbatim (video payloads).
+     * Non-null only when [bytes] is null: the caller seeks to [sliceOffset] and
+     * copies [sliceLength] bytes, so a multi-hundred-MB video never enters memory.
+     */
+    val sliceOffset: Long? = null,
+    val sliceLength: Long = 0L,
     val pixelWidth: Int = 0,
     val pixelHeight: Int = 0,
     /** True for the wallpaper's main full-resolution content. */
@@ -52,6 +59,20 @@ class WallpaperResult(
 /** Progress callback while scanning a package. */
 fun interface ExtractProgress {
     fun onProgress(current: Int, total: Int, message: String)
+}
+
+/**
+ * A decoded video, either as bytes or as a byte range to copy verbatim.
+ *
+ * The range form is what keeps big video wallpapers from being loaded whole:
+ * only [size] is known up front, the payload is streamed out at export time.
+ */
+private class VideoPayload(
+    val bytes: ByteArray?,
+    val sliceOffset: Long?,
+    val sliceLength: Long
+) {
+    val size: Long get() = bytes?.size?.toLong() ?: sliceLength
 }
 
 /** Image extensions saved verbatim when found as plain package entries. */
@@ -114,20 +135,24 @@ object Extractor {
         var main: ExtractedAsset? = null
         if (isVideo) {
             // Pick the largest decodable video (direct mp4 or video tex).
+            // Nothing is held in memory here: uncompressed payloads are described
+            // by their byte range and only streamed out at export time.
             var bestEntry: PkgEntry? = null
-            var bestBytes: ByteArray? = null
+            var bestPayload: VideoPayload? = null
             for (ve in videoEntries) {
-                val mb = decodeVideo(src, ve, isMobile, lz4) ?: continue
-                if (bestBytes == null || mb.size > bestBytes!!.size) {
-                    bestEntry = ve; bestBytes = mb
+                val payload = decodeVideo(src, ve, isMobile, lz4) ?: continue
+                if (bestPayload == null || payload.size > bestPayload.size) {
+                    bestEntry = ve; bestPayload = payload
                 }
             }
-            if (bestEntry != null && bestBytes != null) {
+            if (bestEntry != null && bestPayload != null) {
                 main = ExtractedAsset(
                     AssetKind.VIDEO,
                     uniqueName(usedNames, bestEntry.nameWithoutExtension, "mp4"),
                     bestEntry.path,
-                    bytes = bestBytes,
+                    bytes = bestPayload.bytes,
+                    sliceOffset = bestPayload.sliceOffset,
+                    sliceLength = bestPayload.sliceLength,
                     isPrimary = true,
                     note = "视频"
                 )
@@ -137,7 +162,12 @@ object Extractor {
             val ranked = ImageRanker.rank(imageTexCandidates)
             for (rankedItem in ranked) {
                 val entry = entryFor(rankedItem.candidate.path)
-                val raw = PkgReader.readEntryBytes(src, entry)
+                // 读取失败（截断 / IO）也要继续试下一个候选，不能让一个坏条目拖垮整包。
+                val raw = try {
+                    PkgReader.readEntryBytes(src, entry)
+                } catch (e: Exception) {
+                    continue
+                }
                 val asset = try {
                     TexAssetDecoder.decode(raw, lz4, isMobile)
                 } catch (e: RuntimeException) {
@@ -163,14 +193,20 @@ object Extractor {
         // 1) Plain preview image (e.g. preview.jpg) verbatim.
         val plain = plainImageEntries.firstOrNull { isPreviewPath(it.path) }
         if (plain != null) {
-            val b = PkgReader.readEntryBytes(src, plain)
-            preview = ExtractedAsset(
-                AssetKind.IMAGE,
-                uniqueName(usedNames, plain.nameWithoutExtension, plain.extension.removePrefix(".")),
-                plain.path,
-                bytes = b,
-                note = "预览图"
-            )
+            val b = try {
+                PkgReader.readEntryBytes(src, plain)
+            } catch (e: Exception) {
+                null
+            }
+            if (b != null) {
+                preview = ExtractedAsset(
+                    AssetKind.IMAGE,
+                    uniqueName(usedNames, plain.nameWithoutExtension, plain.extension.removePrefix(".")),
+                    plain.path,
+                    bytes = b,
+                    note = "预览图"
+                )
+            }
         }
 
         // 2) Preview tex carrying an already-encoded payload (JPEG/PNG).
@@ -243,24 +279,70 @@ object Extractor {
         }
     }
 
+    /**
+     * Resolves a video entry without loading it whenever possible.
+     *
+     * - plain `.mp4` entries: returned as a byte range;
+     * - video `.tex` with an uncompressed mip: returned as a byte range too, after
+     *   checking the 12-byte MP4 brand at that offset;
+     * - LZ4-compressed payloads: cannot be streamed, so they are decoded in memory
+     *   (the caller is responsible for not keeping them around).
+     */
     private fun decodeVideo(
         src: SeekableData, entry: PkgEntry, isMobile: Boolean, lz4: Lz4BlockDecompressor?
-    ): ByteArray? {
-        val raw = PkgReader.readEntryBytes(src, entry)
-        if (entry.extension == ".mp4") return raw
+    ): VideoPayload? {
+        if (entry.extension == ".mp4") {
+            return VideoPayload(null, entry.dataOffset, entry.length)
+        }
+
+        // 只读头部前缀：视频纹理动辄几百 MB，不能为了知道偏移就整读进来。
+        val prefix = try {
+            PkgReader.readEntryPrefix(src, entry, PEEK_PREFIX_BYTES)
+        } catch (e: Exception) {
+            return null
+        }
+        val slice = try {
+            TexAssetDecoder.peekMipSlice(prefix, isMobile)
+        } catch (e: Exception) {
+            null
+        }
+        if (slice != null) {
+            if (!slice.isVideo) return null
+            if (!slice.isLz4) {
+                val start = entry.dataOffset + slice.offset
+                val length = minOf(slice.length, entry.length - slice.offset)
+                if (length > 0 && start + 12 <= src.size &&
+                    TexAssetDecoder.isMp4Header(src.readAt(start, 12))
+                ) {
+                    return VideoPayload(null, start, length)
+                }
+                return null
+            }
+            // 压缩过的视频只能整读解压，走到下面的回退分支。
+        }
+
+        val raw = try {
+            PkgReader.readEntryBytes(src, entry)
+        } catch (e: Exception) {
+            return null
+        }
         val asset = try {
             TexAssetDecoder.decode(raw, lz4, isMobile)
         } catch (e: RuntimeException) {
             null
         }
-        return (asset as? TexAsset.Video)?.bytes
+        return (asset as? TexAsset.Video)?.bytes?.let { VideoPayload(it, null, 0L) }
     }
 
     private fun decodeImage(
         src: SeekableData, entry: PkgEntry, isMobile: Boolean, lz4: Lz4BlockDecompressor?
     ): TexAsset.Image? {
         if (entry.extension != ".tex") return null
-        val raw = PkgReader.readEntryBytes(src, entry)
+        val raw = try {
+            PkgReader.readEntryBytes(src, entry)
+        } catch (e: Exception) {
+            return null
+        }
         val asset = try {
             TexAssetDecoder.decode(raw, lz4, isMobile)
         } catch (e: RuntimeException) {

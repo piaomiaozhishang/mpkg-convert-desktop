@@ -11,6 +11,7 @@ import com.mpkg.app.util.JsonValue
 import com.mpkg.app.util.JsonWriter
 import com.mpkg.app.util.asBoolean
 import com.mpkg.app.util.asInt
+import com.mpkg.app.util.asLong
 import com.mpkg.app.util.asString
 import com.mpkg.app.util.asStringOrNull
 import com.mpkg.app.util.get
@@ -53,6 +54,11 @@ class SettingsStore(private val file: File = PlatformPaths.settingsFile()) {
         "accent" to JsonValue.of(s.accent.name),
         "reduceMotion" to JsonValue.of(s.reduceMotion),
         "openOutputWhenDone" to JsonValue.of(s.openOutputWhenDone),
+        "autoCheckUpdate" to JsonValue.of(s.autoCheckUpdate),
+        "updateCheckUrl" to JsonValue.of(s.updateCheckUrl),
+        "updateDownloadUrl" to JsonValue.of(s.updateDownloadUrl),
+        "lastUpdateCheckAt" to JsonValue.of(s.lastUpdateCheckAt),
+        "ignoredUpdateVersion" to JsonValue.of(s.ignoredUpdateVersion),
         "window" to JsonValue.obj(
             "x" to JsonValue.of(s.window.x),
             "y" to JsonValue.of(s.window.y),
@@ -78,6 +84,11 @@ class SettingsStore(private val file: File = PlatformPaths.settingsFile()) {
             }.getOrDefault(AccentPreset.DEFAULT),
             reduceMotion = root["reduceMotion"].asBoolean(false),
             openOutputWhenDone = root["openOutputWhenDone"].asBoolean(false),
+            autoCheckUpdate = root["autoCheckUpdate"].asBoolean(true),
+            updateCheckUrl = root["updateCheckUrl"].asString(AppSettings.DEFAULT_UPDATE_CHECK_URL),
+            updateDownloadUrl = root["updateDownloadUrl"].asString(""),
+            lastUpdateCheckAt = root["lastUpdateCheckAt"].asLong(0L),
+            ignoredUpdateVersion = root["ignoredUpdateVersion"].asStringOrNull(),
             window = WindowState(
                 x = window["x"].asInt(WindowState.UNSET),
                 y = window["y"].asInt(WindowState.UNSET),

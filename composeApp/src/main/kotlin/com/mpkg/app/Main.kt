@@ -18,7 +18,6 @@ import com.mpkg.app.ui.MpkgApp
 import com.mpkg.app.viewmodel.AppViewModel
 import com.mpkg.app.viewmodel.ConvertViewModel
 import com.mpkg.app.viewmodel.appScope
-import kotlinx.coroutines.delay
 import kotlin.system.exitProcess
 
 /**
@@ -87,7 +86,8 @@ private fun launchGui(prefill: List<java.io.File>) {
                     )
                 }
             } else if (windowState.placement == WindowPlacement.Maximized) {
-                delay(300)
+                // 不再 delay：这里的延迟与 ViewModel 的 700ms 去抖叠加，
+                // 「最大化 → 立刻还原」会落错值，统一交给去抖处理（审查报告 O11）。
                 app.updateWindowState { it.copy(maximized = true) }
             }
         }

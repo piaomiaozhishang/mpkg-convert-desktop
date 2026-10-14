@@ -44,7 +44,9 @@ class ConvertViewModel(
         scope = scope,
         settingsProvider = { app.settings.value },
         onUpdate = ::upsert,
-        onCompleted = ::afterTaskFinished
+        onCompleted = ::afterTaskFinished,
+        // 缩略图在队列里就落盘，任务对象只留路径（审查报告 O4）。
+        storeThumbnail = { id, bytes -> app.saveThumbnail(id, bytes)?.let { app.thumbnailPath(it) } }
     )
 
     /** 最近一次拖拽处理的时间戳，用于 Compose 与 AWT 双通道去重。 */
@@ -199,10 +201,8 @@ class ConvertViewModel(
         if (task.status != TaskStatus.DONE) return
         val first = task.outputs.firstOrNull { !it.isPreview } ?: return
         val kind = if (first.fileName.substringAfterLast('.', "").lowercase() == "mp4") "video" else "image"
-        var thumbName: String? = null
-        task.thumbnailBytes?.let { bytes ->
-            thumbName = app.saveThumbnail(task.id, bytes)
-        }
+        // 缩略图已在队列里落盘，这里只把文件名记进历史，不再重复写一次。
+        val thumbName = task.thumbnailPath?.let { java.io.File(it).name }
         app.addHistory(
             HistoryEntry(
                 id = task.id,

@@ -42,6 +42,7 @@ import com.mpkg.app.queue.ConversionTask
 import com.mpkg.app.queue.TaskStatus
 import com.mpkg.app.ui.theme.Motion
 import com.mpkg.app.ui.theme.MpkgTheme
+import java.io.File
 
 /**
  * 任务卡片（任务卡 T2.3，对应概念稿的卡片列表项）。
@@ -166,7 +167,7 @@ fun TaskCard(
 private fun metaLine(task: ConversionTask): String {
     val parts = ArrayList<String>(3)
     parts.add(task.packageSummary())
-    task.outputSummary()?.let { parts.add(it) }
+    (task.outputSummary() ?: task.note)?.let { parts.add(it) }
     if (task.status == TaskStatus.DONE && task.elapsedMs > 0) {
         parts.add("用时 ${"%.1f".format(task.elapsedMs / 1000.0)} 秒")
     }
@@ -177,9 +178,12 @@ private fun metaLine(task: ConversionTask): String {
 private fun Thumbnail(task: ConversionTask) {
     val colors = MpkgTheme.colors
     val shape = RoundedCornerShape(MpkgTheme.radius.icon)
-    val bitmap: ImageBitmap? = remember(task.thumbnailBytes) {
-        task.thumbnailBytes?.let { bytes ->
-            runCatching { org.jetbrains.skia.Image.makeFromEncoded(bytes).toComposeImageBitmap() }.getOrNull()
+    // 缩略图只存路径，按需读一次；读不到（被清理/被跳过）就画占位图，不影响卡片渲染。
+    val bitmap: ImageBitmap? = remember(task.thumbnailPath) {
+        task.thumbnailPath?.let { path ->
+            runCatching { File(path).readBytes() }
+                .mapCatching { org.jetbrains.skia.Image.makeFromEncoded(it).toComposeImageBitmap() }
+                .getOrNull()
         }
     }
     Box(

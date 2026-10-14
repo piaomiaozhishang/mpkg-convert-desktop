@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "downloadUrl": "",
+  "notes": "首个桌面版发布：拖入 .mpkg / .pkg 即可批量提取 4K 原图与 MP4。",
+  "force": false
+}
