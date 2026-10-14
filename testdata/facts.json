@@ -1,0 +1,157 @@
+{
+ "source": {
+  "path": "D:\\视频制作\\5.mpkg",
+  "size": 2862443,
+  "sha256": "928a12c56ba6b28dc38962aaf1242dcb6bb7f90cb9433662e1580a5dff55faf9"
+ },
+ "package": {
+  "magic": "PKGM0019",
+  "entry_count": 12,
+  "entries": [
+   {
+    "path": "materials/presets/fireflies.json",
+    "offset": 0,
+    "length": 226
+   },
+   {
+    "path": "materials/presets/firefliestrail.json",
+    "offset": 226,
+    "length": 200
+   },
+   {
+    "path": "materials/workshop/2098048943/presets/trail_1.json",
+    "offset": 426,
+    "length": 224
+   },
+   {
+    "path": "materials/【哲风壁纸】二次元-动漫女孩_upscayl_3840px_digital-art-4x.json",
+    "offset": 650,
+    "length": 315
+   },
+   {
+    "path": "materials/【哲风壁纸】二次元-动漫女孩_upscayl_3840px_digital-art-4x.tex",
+    "offset": 965,
+    "length": 2403746
+   },
+   {
+    "path": "models/【哲风壁纸】二次元-动漫女孩_upscayl_3840px_digital-art-4x.json",
+    "offset": 2404711,
+    "length": 128
+   },
+   {
+    "path": "particles/presets/fireflies.json",
+    "offset": 2404839,
+    "length": 2366
+   },
+   {
+    "path": "particles/presets/firefliestrail.json",
+    "offset": 2407205,
+    "length": 1802
+   },
+   {
+    "path": "particles/workshop/2098048943/presets/trail_1.json",
+    "offset": 2409007,
+    "length": 1539
+   },
+   {
+    "path": "preview.jpg",
+    "offset": 2410546,
+    "length": 448223
+   },
+   {
+    "path": "project.json",
+    "offset": 2858769,
+    "length": 502
+   },
+   {
+    "path": "scene.json",
+    "offset": 2859271,
+    "length": 2490
+   }
+  ],
+  "tex_entry_path": "materials/【哲风壁纸】二次元-动漫女孩_upscayl_3840px_digital-art-4x.tex"
+ },
+ "tex": {
+  "magics": [
+   "TEXV0005",
+   "TEXI0001"
+  ],
+  "format": 5,
+  "format_name": "ETC2_RGBA8",
+  "flags": 2,
+  "texture_size": [
+   3840,
+   2160
+  ],
+  "image_size": [
+   3840,
+   2160
+  ],
+  "container": "TEXB0004",
+  "image_count": 1,
+  "image_format": -1,
+  "image_format_name": "RAW",
+  "mipmap_count": 1
+ },
+ "mip0": {
+  "width": 3840,
+  "height": 2160,
+  "lz4_compressed": true,
+  "decompressed_bytes": 8294400,
+  "bytes_per_pixel": 1,
+  "first_data_offset": 91
+ },
+ "decoding": {
+  "container_bytes_first_8": "EAC alpha block (opaque fingerprint FF 00 00 00 00 00 00 00)",
+  "container_bytes_last_8": "ETC2 RGB block",
+  "bit_order": "big-endian 64-bit per half",
+  "channel_order": "native RGBA; NO swap needed"
+ },
+ "output": {
+  "known_good": {
+   "path": "D:\\pro-workbuddy\\壁纸转原图\\output\\壁纸原图_3840x2160.png",
+   "sha256": "a2b35eeb6bed8e5f3a5689d0dfd00a3aaee51209c4f82519f587b55f3f29c9f9",
+   "size": [
+    3840,
+    2160
+   ]
+  },
+  "selfcheck": {
+   "path": "D:\\pro-workbuddy\\壁纸转原图\\handoff\\_selfcheck\\5_original.png",
+   "sha256": "1e2fca1d767ea7970718ff762253bec66b6ec70e0f0e46090989b2dd44dc273a",
+   "size": [
+    3840,
+    2160
+   ]
+  },
+  "pixels_identical": true,
+  "preview": {
+   "path": "D:\\pro-workbuddy\\壁纸转原图\\_mpkg_out\\preview.jpg",
+   "sha256": "81471ee601d12ca053787140983ab2ba394589f69e9267fa2c5e5854288ef0ef",
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  "expected_pixels_sha256_known_good": "b5d2736c340645bc237c372dfa59b68619fc9c0e0b59bbe1b40fc1cbfbc75dea",
+  "expected_pixels_sha256_selfcheck": "b5d2736c340645bc237c372dfa59b68619fc9c0e0b59bbe1b40fc1cbfbc75dea",
+  "pixels_sha256_note": "sha256 of the raw RGB pixel bytes (row-major, 3 B/px) - encoder independent. An Android/Bitmap ARGB_8888 decode should produce the same RGB values; hash the RGB bytes (drop A) to compare."
+ },
+ "preview_alignment": {
+  "crop_x": [
+   1254,
+   3414
+  ],
+  "crop_y": [
+   0,
+   2160
+  ],
+  "downscaled_to": 1024,
+  "ncc_per_channel": [
+   0.9984,
+   0.9983,
+   0.9962
+  ],
+  "ncc_luma": 0.9988
+ }
+}
