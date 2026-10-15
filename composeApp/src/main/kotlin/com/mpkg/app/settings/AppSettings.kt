@@ -54,10 +54,14 @@ data class AppSettings(
     val updateCheckUrl: String = DEFAULT_UPDATE_CHECK_URL,
     /** 新版本下载地址；留空则用 update.json 里的 downloadUrl。 */
     val updateDownloadUrl: String = "",
-    /** 上次检查时间（epoch 毫秒），用于 12 小时节流。 */
+    /** 上次检查时间（epoch 毫秒），用于 12 小时节流；失败也记录，避免地址不通时每次启动都重试。 */
     val lastUpdateCheckAt: Long = 0L,
-    /** 用户点过「忽略新版本（再也不提示）」的版本号。 */
+    /** 上次检查结果：null=从未检查；true=成功；false=失败（地址不通或网络异常）。 */
+    val lastUpdateCheckOk: Boolean? = null,
+    /** 用户点过「忽略此版本」的版本号。 */
     val ignoredUpdateVersion: String? = null,
+    /** 忽略发生的时间（epoch 毫秒）；距离现在超过 12 小时自动恢复提醒。 */
+    val ignoredUpdateAt: Long = 0L,
     val window: WindowState = WindowState()
 ) {
     /** 并发度收敛到 1..8，避免配置被写坏时开出一堆线程。 */
@@ -69,6 +73,19 @@ data class AppSettings(
 
     /** 实际使用的版本检查地址（设置为空时回退默认值）。 */
     fun effectiveUpdateCheckUrl(): String = updateCheckUrl.ifBlank { DEFAULT_UPDATE_CHECK_URL }
+
+    /**
+     * 「忽略此版本」是否仍在有效期内：同版本、且忽略时间距 [now] 不超过 [intervalMs]。
+     *
+     * 过期后自动恢复提醒（用户反馈：忽略应当是 12 小时内不再提示，不是永久拉黑）。
+     * 强制更新（force）由调用方另行判断，不走这里。
+     */
+    fun ignoreActiveFor(remoteVersion: String, now: Long, intervalMs: Long): Boolean {
+        if (ignoredUpdateVersion.isNullOrEmpty()) return false
+        if (ignoredUpdateVersion != remoteVersion) return false
+        val age = now - ignoredUpdateAt
+        return age in 0 until intervalMs
+    }
 
     companion object {
         const val DEFAULT_CONCURRENCY = 2

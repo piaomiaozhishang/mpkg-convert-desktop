@@ -43,6 +43,20 @@ class JsonTest {
     }
 
     @Test
+    fun `可空布尔三态往返`() {
+        val none = JsonValue.of(null as Boolean?)
+        val yes = JsonValue.of(true as Boolean?)
+        val no = JsonValue.of(false as Boolean?)
+        assertEquals("null", JsonWriter.write(none))
+        assertEquals("true", JsonWriter.write(yes))
+        assertEquals("false", JsonWriter.write(no))
+        assertNull(JsonParser.parse("null").asBooleanOrNull())
+        assertEquals(true, JsonParser.parse("true").asBooleanOrNull())
+        assertEquals(false, JsonParser.parse("false").asBooleanOrNull())
+        assertNull(JsonParser.parse("0").asBooleanOrNull())
+    }
+
+    @Test
     fun `非法输入解析返回 null 而不是抛异常`() {
         assertNull(JsonParser.parseOrNull("{ 不是 json "))
         assertNull(JsonParser.parseOrNull(""))

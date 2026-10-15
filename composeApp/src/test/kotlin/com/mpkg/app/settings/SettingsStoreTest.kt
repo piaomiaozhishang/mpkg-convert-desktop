@@ -5,6 +5,7 @@ import com.mpkg.app.ui.theme.AccentPreset
 import com.mpkg.app.ui.theme.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -43,10 +44,41 @@ class SettingsStoreTest {
             accent = AccentPreset.VIOLET,
             reduceMotion = true,
             openOutputWhenDone = true,
+            autoCheckUpdate = true,
+            updateCheckUrl = "https://example.com/update.json",
+            updateDownloadUrl = "https://example.com/app.zip",
+            lastUpdateCheckAt = 1_700_000_000_000L,
+            lastUpdateCheckOk = true,
+            ignoredUpdateVersion = "1.0.1",
+            ignoredUpdateAt = 1_700_000_100_000L,
             window = WindowState(x = 120, y = 80, width = 1200, height = 800, maximized = true)
         )
         store().save(custom)
         assertEquals(custom.normalized(), store().load())
+    }
+
+    @Test
+    fun `忽略版本只在12小时内有效_过期自动恢复`() {
+        val now = 10_000_000L
+        val interval = 12L * 60 * 60 * 1000
+        val ignored = AppSettings(ignoredUpdateVersion = "1.0.1", ignoredUpdateAt = now)
+        assertTrue(ignored.ignoreActiveFor("1.0.1", now + interval - 1, interval))
+        assertFalse("满 12 小时应恢复提醒", ignored.ignoreActiveFor("1.0.1", now + interval, interval))
+        assertFalse(ignored.ignoreActiveFor("1.0.1", now + interval + 60_000, interval))
+        assertFalse("换了版本号不再压制", ignored.ignoreActiveFor("1.0.2", now + 1000, interval))
+        assertFalse("没忽略过任何版本", AppSettings().ignoreActiveFor("1.0.1", now, interval))
+    }
+
+    @Test
+    fun `检查结果三态可往返_缺失即从未检查`() {
+        val store = store()
+        store.save(AppSettings(lastUpdateCheckAt = 123L, lastUpdateCheckOk = false))
+        assertEquals(false, store.load().lastUpdateCheckOk)
+        store.save(AppSettings(lastUpdateCheckAt = 123L, lastUpdateCheckOk = true))
+        assertEquals(true, store.load().lastUpdateCheckOk)
+        store.save(AppSettings())
+        assertNull(store.load().lastUpdateCheckOk)
+        assertEquals(0L, store.load().ignoredUpdateAt)
     }
 
     @Test

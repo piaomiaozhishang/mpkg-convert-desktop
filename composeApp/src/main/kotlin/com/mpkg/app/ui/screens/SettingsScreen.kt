@@ -205,7 +205,7 @@ fun SettingsScreen(
                 HairlineDivider()
                 SettingRow(
                     "检查更新",
-                    "从 Gitee 读取版本信息 · ${formatLastCheck(settings.lastUpdateCheckAt)}"
+                    "从 Gitee 读取版本信息 · ${formatLastCheck(settings.lastUpdateCheckAt, settings.lastUpdateCheckOk)}"
                 ) {
                     AppButton("检查更新", onCheckUpdate, kind = ButtonKind.SECONDARY)
                 }
@@ -238,15 +238,19 @@ fun SettingsScreen(
     }
 }
 
-/** 上次检查时间的人话描述。 */
-private fun formatLastCheck(at: Long): String {
+/** 上次检查时间的人话描述；ok=false 说明地址不通或网络异常（自动检查仍在按时尝试）。 */
+private fun formatLastCheck(at: Long, ok: Boolean?): String {
     if (at <= 0L) return "从未检查"
     val minutes = (System.currentTimeMillis() - at) / 60_000L
-    return when {
-        minutes < 1 -> "刚刚检查过"
-        minutes < 60 -> "$minutes 分钟前检查过"
-        minutes < 60 * 24 -> "${minutes / 60} 小时前检查过"
-        else -> "${minutes / (60 * 24)} 天前检查过"
+    val ago = when {
+        minutes < 1 -> "刚刚"
+        minutes < 60 -> "$minutes 分钟前"
+        minutes < 60 * 24 -> "${minutes / 60} 小时前"
+        else -> "${minutes / (60 * 24)} 天前"
+    }
+    return when (ok) {
+        false -> "$ago 检查失败（地址不通或网络异常）"
+        else -> "$ago 检查过"
     }
 }
 

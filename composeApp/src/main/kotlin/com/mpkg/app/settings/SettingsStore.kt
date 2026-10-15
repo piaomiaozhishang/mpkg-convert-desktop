@@ -58,7 +58,9 @@ class SettingsStore(private val file: File = PlatformPaths.settingsFile()) {
         "updateCheckUrl" to JsonValue.of(s.updateCheckUrl),
         "updateDownloadUrl" to JsonValue.of(s.updateDownloadUrl),
         "lastUpdateCheckAt" to JsonValue.of(s.lastUpdateCheckAt),
+        "lastUpdateCheckOk" to JsonValue.of(s.lastUpdateCheckOk),
         "ignoredUpdateVersion" to JsonValue.of(s.ignoredUpdateVersion),
+        "ignoredUpdateAt" to JsonValue.of(s.ignoredUpdateAt),
         "window" to JsonValue.obj(
             "x" to JsonValue.of(s.window.x),
             "y" to JsonValue.of(s.window.y),
@@ -88,7 +90,9 @@ class SettingsStore(private val file: File = PlatformPaths.settingsFile()) {
             updateCheckUrl = root["updateCheckUrl"].asString(AppSettings.DEFAULT_UPDATE_CHECK_URL),
             updateDownloadUrl = root["updateDownloadUrl"].asString(""),
             lastUpdateCheckAt = root["lastUpdateCheckAt"].asLong(0L),
+            lastUpdateCheckOk = (root["lastUpdateCheckOk"] as? JsonValue.JsonBoolean)?.value,
             ignoredUpdateVersion = root["ignoredUpdateVersion"].asStringOrNull(),
+            ignoredUpdateAt = root["ignoredUpdateAt"].asLong(0L),
             window = WindowState(
                 x = window["x"].asInt(WindowState.UNSET),
                 y = window["y"].asInt(WindowState.UNSET),

@@ -20,6 +20,7 @@ sealed interface JsonValue {
         fun of(value: Int): JsonValue = JsonNumber(value.toDouble())
         fun of(value: Long): JsonValue = JsonNumber(value.toDouble())
         fun of(value: Boolean): JsonValue = JsonBoolean(value)
+        fun of(value: Boolean?): JsonValue = if (value == null) JsonNull else JsonBoolean(value)
         fun of(items: List<JsonValue>): JsonValue = JsonArray(items)
         fun obj(vararg pairs: Pair<String, JsonValue>): JsonObject = JsonObject(pairs.toMap())
         fun arr(items: List<JsonValue>): JsonArray = JsonArray(items)
@@ -44,6 +45,9 @@ fun JsonValue?.asLong(default: Long = 0L): Long = (this as? JsonValue.JsonNumber
 
 fun JsonValue?.asBoolean(default: Boolean = false): Boolean =
     (this as? JsonValue.JsonBoolean)?.value ?: default
+
+/** 取布尔值；字段缺失、是 null 或不是布尔时返回 null（用于「从未检查」三态）。 */
+fun JsonValue?.asBooleanOrNull(): Boolean? = (this as? JsonValue.JsonBoolean)?.value
 
 fun JsonValue?.asList(): List<JsonValue> = (this as? JsonValue.JsonArray)?.items ?: emptyList()
 

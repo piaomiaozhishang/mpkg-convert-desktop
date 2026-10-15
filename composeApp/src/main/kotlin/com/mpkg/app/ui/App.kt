@@ -138,7 +138,9 @@ fun WindowScope.MpkgApp(app: AppViewModel, convert: ConvertViewModel) {
     }
 
     fun pickFiles() {
+        AppLog.i("打开文件选择对话框")
         val files = FileDialogs.choosePackageFiles(window)
+        AppLog.i("文件选择对话框返回 ${files.size} 个文件")
         if (files.isNotEmpty()) convert.addFiles(files)
     }
 
@@ -395,8 +397,9 @@ private fun DragAndDropEvent.readDroppedFiles(): List<File> {
  * 更新公告弹窗。
  *
  * 「下载新版本」打开下载地址（update.json 的 downloadUrl → 设置里的下载地址 → 项目主页）；
- * 「忽略新版本（再也不提示）」把版本号写进设置，后续检查不再弹。
- * update.json 里发 `"force": true` 时进入强制更新：忽略钮隐藏、点窗外也关不掉。
+ * 「忽略此版本（12 小时内不再提醒）」把版本号和时间写进设置，12 小时后自动恢复提醒，
+ * 手动点「检查更新」不受忽略影响。update.json 里发 `"force": true` 时进入强制更新：
+ * 忽略钮隐藏、点窗外也关不掉。
  */
 @Composable
 private fun UpdateAnnouncementDialog(
@@ -429,7 +432,7 @@ private fun UpdateAnnouncementDialog(
         },
         dismissButton = if (!info.force) {
             {
-                TextButton(onClick = { onIgnore(info) }) { Text("忽略新版本（再也不提示）") }
+                TextButton(onClick = { onIgnore(info) }) { Text("忽略此版本（12 小时内不再提醒）") }
             }
         } else {
             null

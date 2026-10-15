@@ -101,7 +101,8 @@ class AppViewModel(private val scope: CoroutineScope) {
     /**
      * 检查一次更新。
      *
-     * @param manual 用户手动点的（设置页按钮）：无论结果如何都给 toast 反馈；
+     * @param manual 用户手动点的（设置页按钮）：无论结果如何都给 toast 反馈，
+     *               且不受「忽略此版本」压制——手动检查是用户的明确意图；
      *               自动检查只在失败时静默记日志，不打扰用户。
      */
     fun checkForUpdate(manual: Boolean) {
@@ -113,18 +114,25 @@ class AppViewModel(private val scope: CoroutineScope) {
                 url = settings.effectiveUpdateCheckUrl(),
                 currentVersion = AppInfo.VERSION
             )
+            val now = System.currentTimeMillis()
             result.onSuccess { info ->
-                updateSettings(quiet = true) { it.copy(lastUpdateCheckAt = System.currentTimeMillis()) }
+                // 成功与失败都记录时间：失败也节流，避免地址不通时每次启动都重试网络。
+                updateSettings(quiet = true) { it.copy(lastUpdateCheckAt = now, lastUpdateCheckOk = true) }
                 if (info == null) {
                     if (manual) showToast("当前已是最新版本 v${AppInfo.VERSION}")
                     return@onSuccess
                 }
-                if (!info.force && info.version == settings.ignoredUpdateVersion) {
-                    if (manual) showToast("发现新版本 ${info.version}（你已选择不再提示）")
+                // 「忽略此版本」只在 12 小时内压制自动提醒；过期自动恢复。
+                val suppressed = !info.force &&
+                    _settings.value.ignoreActiveFor(info.version, now, UPDATE_CHECK_INTERVAL_MS)
+                if (suppressed && !manual) {
+                    AppLog.i("版本 ${info.version} 在忽略期内，自动检查跳过提醒")
                     return@onSuccess
                 }
                 _updateAvailable.value = info
+                AppLog.i("发现新版本 ${info.version}，弹出更新公告")
             }.onFailure {
+                updateSettings(quiet = true) { it.copy(lastUpdateCheckAt = now, lastUpdateCheckOk = false) }
                 if (manual) showToast("检查更新失败：请检查网络或更新地址")
             }
         }
@@ -135,11 +143,13 @@ class AppViewModel(private val scope: CoroutineScope) {
         _updateAvailable.value = null
     }
 
-    /** 「忽略新版本（再也不提示）」：记住版本号，后续检查不再弹。 */
+    /** 「忽略此版本（12 小时内不再提醒）」：记录版本号与时间，过期后自动恢复提醒。 */
     fun ignoreUpdate(info: UpdateInfo) {
-        updateSettings(quiet = true) { it.copy(ignoredUpdateVersion = info.version) }
+        updateSettings(quiet = true) {
+            it.copy(ignoredUpdateVersion = info.version, ignoredUpdateAt = System.currentTimeMillis())
+        }
         _updateAvailable.value = null
-        showToast("已忽略版本 ${info.version}，不会再提示")
+        showToast("已忽略版本 ${info.version}，12 小时内不再自动提醒")
     }
 
     /** 「下载新版本」：优先 update.json 的 downloadUrl，其次设置里的下载地址，最后项目主页。 */
