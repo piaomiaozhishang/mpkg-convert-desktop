@@ -129,3 +129,57 @@ tasks.register<Jar>("cliJar") {
         exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/versions/**")
     }
 }
+
+/**
+ * Windows 安装包（.exe）：编译 Inno Setup 脚本 packaging/windows/setup.iss。
+ *
+ * 产出 `mpkg-tool-setup-<version>.exe`（中文安装向导、可选安装路径、
+ * 桌面/开始菜单快捷方式、可正常卸载），与绿色便携版 zip 并列成为第二种分发形态。
+ *
+ * ISCC.exe 定位顺序：`-PinnoHome=<Inno Setup 安装目录>` > 常见安装路径 > PATH。
+ * 简体中文翻译随仓库 packaging/windows/ChineseSimplified.isl 分发，
+ * 编译前自动同步到编译器 Languages 目录（setup.iss 以 compiler: 前缀引用）。
+ */
+val innoSetupDir: String? = providers.gradleProperty("innoHome").orNull
+val isccExe: String = run {
+    val candidates = listOfNotNull(
+        innoSetupDir?.let { "$it\\ISCC.exe" },
+        System.getenv("LOCALAPPDATA")?.let { "$it\\Programs\\Inno Setup 6\\ISCC.exe" },
+        "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe",
+        "C:\\Program Files\\Inno Setup 6\\ISCC.exe",
+    )
+    candidates.firstOrNull { File(it).isFile } ?: "ISCC"
+}
+
+val packageWindowsInstaller by tasks.registering(Exec::class) {
+    group = "distribution"
+    description = "用 Inno Setup 把 app-image 打成中文安装包 mpkg-tool-setup-<version>.exe"
+    // app-image 是 setup.iss 的输入；打包前确保它是最新的
+    dependsOn("createDistributable")
+    val issFile = rootProject.layout.projectDirectory.file("packaging/windows/setup.iss").asFile
+    inputs.file(issFile)
+    inputs.file(rootProject.layout.projectDirectory.file("packaging/windows/ChineseSimplified.isl").asFile)
+    // 只把安装包 exe 本身声明为输出：dist/ 目录里还会放置绿色便携版 zip（手动产物），
+    // 不能用 outputs.dir(dist) 把整个目录圈进来，否则 Gradle 清理陈旧输出时会误删 zip。
+    // 文件名与 setup.iss 的 OutputBaseFilename（{#MyAppNameEn}-setup-{#MyAppVersion}）对应。
+    outputs.file(layout.buildDirectory.file("compose/binaries/main/dist/mpkg-tool-setup-1.0.0.exe"))
+    workingDir = rootProject.projectDir
+
+    doFirst {
+        if (!issFile.isFile) throw GradleException("缺少 $issFile")
+        // 把仓库里的官方简体中文翻译同步进编译器 Languages 目录
+        val iscc = File(isccExe)
+        if (iscc.isFile) {
+            val vendored = rootProject.layout.projectDirectory.file("packaging/windows/ChineseSimplified.isl").asFile
+            val target = File(iscc.parentFile, "Languages\\ChineseSimplified.isl")
+            if (vendored.isFile &&
+                (!target.isFile || !vendored.readBytes().contentEquals(target.readBytes()))
+            ) {
+                target.parentFile?.mkdirs()
+                vendored.copyTo(target, overwrite = true)
+                logger.lifecycle("已同步简体中文翻译 -> $target")
+            }
+        }
+    }
+    commandLine(isccExe, issFile.absolutePath)
+}

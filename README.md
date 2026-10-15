@@ -43,10 +43,11 @@ java -jar composeApp/build/libs/mpkg-cli.jar --help
 
 | 平台 | 文件 | 使用方式 |
 |---|---|---|
-| Windows | `mpkg-tool-windows-x64.zip` | 解压后**整个目录**一起拷贝，双击 `mpkg-tool\mpkg-tool.exe` 即可，无需安装 JDK（运行时已内置） |
+| Windows | `mpkg-tool-v1.0.0-win64.zip` | 解压后**整个目录**一起拷贝，双击 `mpkg-tool\mpkg-tool.exe` 即可，无需安装 JDK（运行时已内置） |
+| Windows | `mpkg-tool-setup-1.0.0.exe` | 安装包版本：双击运行中文安装向导，默认装到 `C:\Program Files\mpkg 壁纸提取器`（可改路径），自动创建桌面快捷方式，可在系统「设置 – 应用」里正常卸载 |
 
 > app-image 是「绿色目录」：`runtime`、`app` 与 exe 不能拆散，可随意搬位置、发给别人。
-> 安装版（MSI）需要 WiX 3.x，本仓库不提供。
+> 安装包与绿色版是两种独立分发形态，可并存；两者共用 `%APPDATA%\mpkg-tool` 配置目录（历史记录、设置互通）。
 
 ---
 
@@ -133,7 +134,8 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-release.ps1
 
 ```bash
 ./gradlew :composeApp:createDistributable   # 免安装目录（app-image），三平台通用
-./gradlew :composeApp:packageMsi            # Windows 安装包（需先安装 WiX Toolset 3.x）
+./gradlew :composeApp:packageWindowsInstaller  # Windows 安装包 .exe（需先安装 Inno Setup 6）
+./gradlew :composeApp:packageMsi            # Windows 安装包（另一种形态，需先安装 WiX Toolset 3.x）
 ./gradlew :composeApp:packageDeb            # Linux 安装包
 ./gradlew :composeApp:packageDmg            # macOS 安装包
 ```
@@ -153,6 +155,18 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-release.ps1
 > `binaries\main\app` 里的 jar，jpackage 删不掉旧产物会报
 > `Unable to delete directory ... New files were found`。
 
+> **Windows 安装包（.exe）**：安装脚本为 `packaging/windows/setup.iss`（Inno Setup 6），
+> 需先安装 [Inno Setup 6](https://jrsoftware.org/isdl.php)；ISCC.exe 会按常见安装路径自动查找，
+> 也可用 `-PinnoHome=<Inno Setup 安装目录>` 显式指定。安装特性：全中文向导、默认安装到
+> `C:\Program Files\mpkg 壁纸提取器`（向导内可浏览修改）、桌面快捷方式默认创建 + 开始菜单
+> 快捷方式可选、覆盖安装自动关闭正在运行的旧版、支持正常卸载（注册表卸载项 + unins000.exe）。
+> 简体中文语言包由仓库内 `packaging/windows/ChineseSimplified.isl` 提供（Inno Setup 6.7.3
+> 安装器不自带简体中文，官方单独分发），Gradle 任务编译前会自动同步到编译器 Languages 目录。
+> 注意 `setup.iss` 必须保存为 **UTF-8 with BOM**，否则 ISCC 按本机 GBK 解码，中文全部乱码。
+>
+> **绿色版 zip**：把 `composeApp/build/compose/binaries/main/app/mpkg-tool` 目录打成 zip，
+> 顶层保持 `mpkg-tool/` 目录名（解压后双击 `mpkg-tool\mpkg-tool.exe`）。
+
 输出目录：`composeApp/build/compose/binaries/`。
 
 ---
@@ -170,7 +184,7 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-release.ps1
 ### 发布新版本
 
 1. 改 `composeApp/src/main/kotlin/com/mpkg/app/AppInfo.kt` 里的 `VERSION`
-2. `./gradlew :composeApp:createDistributable` 打出新包，上传到下载地址（GitHub Releases / 网盘均可）
+2. `./gradlew :composeApp:createDistributable` 打绿色版、`./gradlew :composeApp:packageWindowsInstaller` 打安装包，上传到下载地址（GitHub Releases / 网盘均可）
 3. 更新仓库根目录的 `update.json` 并推送到 Gitee：
 
 ```json
