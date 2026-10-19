@@ -28,7 +28,10 @@ class SettingsStore(private val file: File = PlatformPaths.settingsFile()) {
         val text = AtomicFile.readTextOrNull(file) ?: return AppSettings()
         val root = JsonParser.parseOrNull(text) ?: return AppSettings()
         return try {
-            fromJson(root).normalized()
+            fromJson(root).normalized().also { settings ->
+                // 升级旧配置：丢弃用户曾填写的更新端点，并清除落盘字段。
+                if (root["updateCheckUrl"] != null || root["updateDownloadUrl"] != null) save(settings)
+            }
         } catch (e: Exception) {
             AppLog.w("设置文件解析失败，使用默认值: ${e.message}")
             AppSettings()
@@ -55,8 +58,6 @@ class SettingsStore(private val file: File = PlatformPaths.settingsFile()) {
         "reduceMotion" to JsonValue.of(s.reduceMotion),
         "openOutputWhenDone" to JsonValue.of(s.openOutputWhenDone),
         "autoCheckUpdate" to JsonValue.of(s.autoCheckUpdate),
-        "updateCheckUrl" to JsonValue.of(s.updateCheckUrl),
-        "updateDownloadUrl" to JsonValue.of(s.updateDownloadUrl),
         "lastUpdateCheckAt" to JsonValue.of(s.lastUpdateCheckAt),
         "lastUpdateCheckOk" to JsonValue.of(s.lastUpdateCheckOk),
         "ignoredUpdateVersion" to JsonValue.of(s.ignoredUpdateVersion),
@@ -87,8 +88,6 @@ class SettingsStore(private val file: File = PlatformPaths.settingsFile()) {
             reduceMotion = root["reduceMotion"].asBoolean(false),
             openOutputWhenDone = root["openOutputWhenDone"].asBoolean(false),
             autoCheckUpdate = root["autoCheckUpdate"].asBoolean(true),
-            updateCheckUrl = root["updateCheckUrl"].asString(AppSettings.DEFAULT_UPDATE_CHECK_URL),
-            updateDownloadUrl = root["updateDownloadUrl"].asString(""),
             lastUpdateCheckAt = root["lastUpdateCheckAt"].asLong(0L),
             lastUpdateCheckOk = (root["lastUpdateCheckOk"] as? JsonValue.JsonBoolean)?.value,
             ignoredUpdateVersion = root["ignoredUpdateVersion"].asStringOrNull(),

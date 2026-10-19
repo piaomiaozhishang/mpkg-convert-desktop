@@ -1,0 +1,35 @@
+﻿mpkg 壁纸提取器 · 使用与许可说明
+
+欢迎使用 mpkg 壁纸提取器。
+
+本程序用于在本机解析 .mpkg / .pkg 壁纸包，提取图片、视频，以及合成静态场景图片。文件解析和导出在本机完成；更新检查可在设置中关闭。
+
+软件以 MIT 许可证提供，允许使用、复制、修改和分发。分发本软件或其主要部分时，应保留相应的版权及许可声明。壁纸素材的权利仍属于各自权利人，本软件的许可不授予素材使用权。
+
+软件按现状提供，不作明示或默示担保。部分场景特效尚未支持，具体情况请查看转换任务的合成说明。
+
+完整软件许可见安装目录的 LICENSE.txt；第三方组件声明见 THIRD-PARTY-NOTICES.txt 及各组件附带的许可文件。安装本程序不会改变这些许可证赋予的权利。
+
+以下为本软件的 MIT 许可证原文：
+
+MIT License
+
+Copyright (c) 2026 mpkg 壁纸提取器 (mpkg-tool) contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

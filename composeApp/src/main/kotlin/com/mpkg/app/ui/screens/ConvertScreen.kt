@@ -72,7 +72,7 @@ fun ConvertScreen(
     Column(modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).padding(horizontal = MpkgTheme.spacing.xl)) {
             Spacer(Modifier.height(MpkgTheme.spacing.l))
-            PageHeader("转换", "拖入 .mpkg / .pkg，自动提取 4K 原图与 MP4")
+            PageHeader("转换", "拖入 .mpkg / .pkg，提取原图、MP4，或合成场景壁纸")
             Spacer(Modifier.height(MpkgTheme.spacing.l))
             DropZone(
                 active = dragActive,

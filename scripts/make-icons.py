@@ -63,6 +63,11 @@ def draw_glyph(img, size):
 
 
 def build(size):
+    # 发布资源以用户提供的封面为准，重新生成时不能恢复成旧版箭头。
+    source = os.path.join(os.path.dirname(__file__), "..", "composeApp", "src", "main", "resources", "icons", "brand-source.png")
+    if os.path.isfile(source):
+        with Image.open(source) as artwork:
+            return artwork.convert("RGBA").resize((size, size), Image.LANCZOS)
     base = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     grad = gradient(size).convert("RGBA")
     base.paste(grad, (0, 0), rounded_mask(size))

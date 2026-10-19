@@ -2,6 +2,7 @@ package com.mpkg.app.queue
 
 import com.mpkg.app.errors.ErrorMessages
 import com.mpkg.app.export.Exporter
+import com.mpkg.app.export.SceneExporter
 import com.mpkg.app.extract.DesktopExtractor
 import com.mpkg.app.extract.OutputItem
 import com.mpkg.app.extract.OutputPayload
@@ -127,7 +128,9 @@ class ConversionQueue(
             val outDir = File(settings.outputDir)
 
             val analysis = withContext(Dispatchers.IO) {
+                val jobContext = coroutineContext
                 DesktopExtractor.analyzePackage(task.file) { fraction, stage ->
+                    jobContext.ensureActive()
                     update(fraction, stage)
                 }
             }
@@ -151,10 +154,14 @@ class ConversionQueue(
                 return
             }
 
-            update(0.92f, "写出文件")
+            val isScene = main.payload is OutputPayload.Scene
+            update(if (isScene) 0.45f else 0.92f, if (isScene) "准备合成壁纸" else "写出文件")
             val written = withContext(Dispatchers.IO) {
+                val jobContext = coroutineContext
                 val list = ArrayList<TaskOutput>(2)
-                Exporter.write(main, outDir, settings.overwritePolicy)?.let { file ->
+                Exporter.write(main, outDir, settings.overwritePolicy, progress = { n, total, message ->
+                    update(0.45f + 0.45f * n / total.coerceAtLeast(1), message)
+                }, checkActive = { jobContext.ensureActive() })?.let { file ->
                     list.add(toTaskOutput(file, main, isPreview = false))
                 }
                 if (settings.exportPreview) {
@@ -169,8 +176,12 @@ class ConversionQueue(
             coroutineContext.ensureActive()
 
             // 缩略图直接落盘，任务对象只留文件名（O4：不把数百 KB 的预览字节常驻内存）。
-            val thumbPath = (analysis.preview?.payload as? OutputPayload.Bytes)?.data
-                ?.let { bytes -> storeThumbnail(task.id, bytes) }
+            val thumbPath = withContext(Dispatchers.IO) {
+                val bytes = if (isScene) written.firstOrNull()?.let { output ->
+                    runCatching { SceneExporter.thumbnail(File(output.path)) }.getOrNull()
+                } else (analysis.preview?.payload as? OutputPayload.Bytes)?.data
+                bytes?.let { storeThumbnail(task.id, it) }
+            }
 
             // 覆盖策略为「跳过」时 Exporter.write 返回 null，此时不能谎报「已完成」（M9）。
             val skipped = written.isEmpty()
@@ -182,8 +193,10 @@ class ConversionQueue(
                 entryCount = analysis.entryCount,
                 isVideo = analysis.isVideo,
                 outputs = written,
+                primaryOutputPath = written.firstOrNull { !it.isPreview }?.path
+                    ?: File(outDir, main.suggestedName).takeIf { it.isFile }?.absolutePath,
                 thumbnailPath = thumbPath,
-                note = if (skipped) "目标文件已存在，按覆盖策略跳过" else null,
+                note = if (skipped) "目标文件已存在，按覆盖策略跳过" else main.note.takeIf { isScene },
                 elapsedMs = System.currentTimeMillis() - startedAt
             )
             current.set(next)
@@ -222,6 +235,10 @@ class ConversionQueue(
             is OutputPayload.Pixels -> {
                 width = payload.width
                 height = payload.height
+            }
+            is OutputPayload.Scene -> {
+                width = payload.scene.info.canvasWidth
+                height = payload.scene.info.canvasHeight
             }
             else -> {
                 width = 0

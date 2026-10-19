@@ -80,20 +80,7 @@ private fun AppHeader() {
         ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier
-                .size(20.dp)
-                .clip(RoundedCornerShape(MpkgTheme.radius.icon))
-                .background(colors.accent),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                AppIcons.Image,
-                contentDescription = null,
-                tint = colors.onAccent,
-                modifier = Modifier.size(12.dp)
-            )
-        }
+        BrandIcon(Modifier.size(32.dp))
         Spacer(Modifier.width(MpkgTheme.spacing.s))
         Column {
             Text(

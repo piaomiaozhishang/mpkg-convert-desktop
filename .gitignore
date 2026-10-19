@@ -22,6 +22,7 @@ __pycache__/
 
 # 打包中间产物
 out/
+release/
 
 # 端到端验证临时产物
 *.tmp

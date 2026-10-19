@@ -13,10 +13,12 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":scene"))
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.swing)
+    implementation(libs.jna.platform)
     testImplementation(libs.junit)
 }
 
@@ -41,9 +43,10 @@ compose.desktop {
         mainClass = "com.mpkg.app.MainKt"
 
         nativeDistributions {
+            modules("java.desktop", "java.logging")
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "mpkg-tool"
-            packageVersion = "1.0.0"
+            packageVersion = "1.0.1"
             // 描述**必须是纯 ASCII**：Compose 插件用 UTF-8 写 jpackage 的 @argfile，
             // 而 jpackage 按本机 GBK 读，中文「器」的尾字节 0xA8 会让它抛
             // MalformedInputException("Input length = 1")，打包直接失败。
@@ -121,7 +124,7 @@ tasks.register<Jar>("cliJar") {
                 // 只带 CLI 真正需要的：core 模块、lz4-java、kotlin-stdlib。
                 // core 模块的 jar 名就是 "core.jar"（无版本号），不要用前缀匹配漏掉。
                 val n = it.name
-                n == "core.jar" || n.startsWith("core-") || n.startsWith("lz4-java") ||
+                n == "core.jar" || n.startsWith("core-") || n == "scene.jar" || n.startsWith("scene-") || n.startsWith("lz4-java") ||
                     n.startsWith("kotlin-stdlib") || n.startsWith("annotations-")
             }
             .map { zipTree(it) }
@@ -159,10 +162,15 @@ val packageWindowsInstaller by tasks.registering(Exec::class) {
     val issFile = rootProject.layout.projectDirectory.file("packaging/windows/setup.iss").asFile
     inputs.file(issFile)
     inputs.file(rootProject.layout.projectDirectory.file("packaging/windows/ChineseSimplified.isl").asFile)
+    inputs.file(rootProject.file("packaging/windows/安装许可.txt"))
+    inputs.file(rootProject.file("packaging/windows/THIRD-PARTY-NOTICES.txt"))
+    inputs.file(rootProject.file("LICENSE"))
+    inputs.file(rootProject.file("docs/场景特效可行性与本次修复.md"))
+    inputs.dir(layout.buildDirectory.dir("compose/binaries/main/app/mpkg-tool"))
     // 只把安装包 exe 本身声明为输出：dist/ 目录里还会放置绿色便携版 zip（手动产物），
     // 不能用 outputs.dir(dist) 把整个目录圈进来，否则 Gradle 清理陈旧输出时会误删 zip。
     // 文件名与 setup.iss 的 OutputBaseFilename（{#MyAppNameEn}-setup-{#MyAppVersion}）对应。
-    outputs.file(layout.buildDirectory.file("compose/binaries/main/dist/mpkg-tool-setup-1.0.0.exe"))
+    outputs.file(layout.buildDirectory.file("compose/binaries/main/dist/mpkg-tool-setup-1.0.1.exe"))
     workingDir = rootProject.projectDir
 
     doFirst {

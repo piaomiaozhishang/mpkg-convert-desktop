@@ -1,6 +1,8 @@
 ﻿# 用相对窗口左上角的坐标点击，便于做界面人工验收（导航切换、按钮点击等）。
 param(
     [string]$TitleLike = '*mpkg*',
+    [string]$ProcessName = 'java',
+    [int]$TargetProcessId = 0,
     [int]$X = 0,
     [int]$Y = 0,
     [int]$Count = 1,
@@ -15,6 +17,7 @@ public class DshClick {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int command);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, IntPtr dwExtraInfo);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
@@ -22,10 +25,13 @@ public class DshClick {
 "@
 [DshClick]::SetProcessDPIAware() | Out-Null
 
-$proc = Get-Process -Name java -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowTitle -like $TitleLike } | Select-Object -First 1
+$proc = if ($TargetProcessId -gt 0) { Get-Process -Id $TargetProcessId -ErrorAction SilentlyContinue } else {
+    Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
+        Where-Object { $_.MainWindowTitle -like $TitleLike } | Select-Object -First 1
+}
 if (-not $proc) { throw "找不到标题匹配 $TitleLike 的窗口" }
 $h = $proc.MainWindowHandle
+[DshClick]::ShowWindow($h, 9) | Out-Null
 [DshClick]::SetForegroundWindow($h) | Out-Null
 Start-Sleep -Milliseconds 600
 

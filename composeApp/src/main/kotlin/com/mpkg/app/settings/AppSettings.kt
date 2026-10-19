@@ -50,10 +50,6 @@ data class AppSettings(
     val openOutputWhenDone: Boolean = false,
     /** 自动检查更新：开启后每 12 小时查一次，启动时距上次检查超期也会查。 */
     val autoCheckUpdate: Boolean = true,
-    /** 版本信息地址（Gitee raw，JSON 或纯文本版本号）。 */
-    val updateCheckUrl: String = DEFAULT_UPDATE_CHECK_URL,
-    /** 新版本下载地址；留空则用 update.json 里的 downloadUrl。 */
-    val updateDownloadUrl: String = "",
     /** 上次检查时间（epoch 毫秒），用于 12 小时节流；失败也记录，避免地址不通时每次启动都重试。 */
     val lastUpdateCheckAt: Long = 0L,
     /** 上次检查结果：null=从未检查；true=成功；false=失败（地址不通或网络异常）。 */
@@ -66,13 +62,8 @@ data class AppSettings(
 ) {
     /** 并发度收敛到 1..8，避免配置被写坏时开出一堆线程。 */
     fun normalized(): AppSettings = copy(
-        concurrency = concurrency.coerceIn(MIN_CONCURRENCY, MAX_CONCURRENCY),
-        updateCheckUrl = updateCheckUrl.trim(),
-        updateDownloadUrl = updateDownloadUrl.trim()
+        concurrency = concurrency.coerceIn(MIN_CONCURRENCY, MAX_CONCURRENCY)
     )
-
-    /** 实际使用的版本检查地址（设置为空时回退默认值）。 */
-    fun effectiveUpdateCheckUrl(): String = updateCheckUrl.ifBlank { DEFAULT_UPDATE_CHECK_URL }
 
     /**
      * 「忽略此版本」是否仍在有效期内：同版本、且忽略时间距 [now] 不超过 [intervalMs]。
@@ -92,11 +83,5 @@ data class AppSettings(
         const val MIN_CONCURRENCY = 1
         const val MAX_CONCURRENCY = 8
 
-        /**
-         * 默认版本检查地址：Gitee raw（GitHub raw 在国内部分网络下打不开）。
-         * 仓库里 `update.json` 由用户自行发布，格式见 UpdateChecker 文档。
-         */
-        const val DEFAULT_UPDATE_CHECK_URL =
-            "https://gitee.com/piaomiaozhishang/mpkg-convert-desktop/raw/master/update.json"
     }
 }

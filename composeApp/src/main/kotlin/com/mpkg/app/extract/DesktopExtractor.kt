@@ -9,6 +9,8 @@ import com.doubao.repkg.core.TexAsset
 import com.doubao.repkg.core.TexAssetDecoder
 import com.mpkg.app.image.PngIo
 import java.io.File
+import com.mpkg.scene.core.SceneExtractResult
+import com.mpkg.scene.desktop.DesktopSceneCompositor
 
 /**
  * 一个待导出产物的载荷。
@@ -24,6 +26,9 @@ sealed interface OutputPayload {
     class StreamSlice(val source: File, val offset: Long, val length: Long) : OutputPayload
 
     class Pixels(val argb: IntArray, val width: Int, val height: Int) : OutputPayload
+
+    /** Only metadata is retained; the exporter decodes and composites layers one at a time. */
+    class Scene(val source: File, val scene: SceneExtractResult) : OutputPayload
 }
 
 /** 一个可导出的产物（主图或预览图）。 */
@@ -41,12 +46,14 @@ class OutputItem(
             is OutputPayload.StreamSlice -> "mp4"
             is OutputPayload.Bytes -> suggestedName.substringAfterLast('.', "bin").lowercase()
             is OutputPayload.Pixels -> "png"
+            is OutputPayload.Scene -> "png"
         }
 
     fun byteSize(): Long = when (payload) {
         is OutputPayload.Bytes -> payload.data.size.toLong()
         is OutputPayload.StreamSlice -> payload.length
         is OutputPayload.Pixels -> payload.width.toLong() * payload.height * 4
+        is OutputPayload.Scene -> payload.scene.info.canvasWidth.toLong() * payload.scene.info.canvasHeight * 4
     }
 }
 
@@ -114,6 +121,21 @@ object DesktopExtractor {
             // PkgReader.read 只读 TOC（小前缀），不会把数据区拉进内存。
             val archive: PkgArchive = PkgReader.read(src)
             progress?.onStage(0.08f, "解析包结构（${archive.entries.size} 个条目）")
+
+            val scene = DesktopSceneCompositor.findScene(file) { n, total, message ->
+                progress?.onStage(if (total > 0) 0.10f + 0.3f * n / total else 0.10f, message)
+            }
+            if (scene != null) {
+                return PackageAnalysis(
+                    archive.magic, archive.entries.size, false,
+                    OutputItem(AssetKind.IMAGE, file.nameWithoutExtension + "_合成.png", "scene.json",
+                        OutputPayload.Scene(file, scene), true,
+                        "静态合成 · ${scene.info.visibleLayerCount} 个可见图层 · " +
+                            "${scene.info.layers.filter { it.visible }.sumOf { it.opacityMasks.size }} 个透明度遮罩；输出 PNG" +
+                            scene.info.notes.takeIf { it.isNotEmpty() }?.joinToString("；", prefix = "；").orEmpty()),
+                    null, archive.entries
+                )
+            }
 
             progress?.onStage(0.12f, "扫描条目并挑选主图")
             val result = Extractor.analyze(src, CoreDecoding.lz4) { current, total, path ->

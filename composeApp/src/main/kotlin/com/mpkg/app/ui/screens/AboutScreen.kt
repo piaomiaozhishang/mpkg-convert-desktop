@@ -1,5 +1,8 @@
 package com.mpkg.app.ui.screens
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.mpkg.app.ui.components.BrandIcon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +47,7 @@ fun AboutScreen(
     onCopyDiagnostics: () -> Unit,
     onOpenProjectUrl: () -> Unit,
     onCheckUpdate: () -> Unit,
+    onOpenFeedback: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MpkgTheme.colors
@@ -56,20 +60,7 @@ fun AboutScreen(
             AppCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(MpkgTheme.spacing.l)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(MpkgTheme.radius.button))
-                                .background(colors.accent),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                AppIcons.Image,
-                                contentDescription = null,
-                                tint = colors.onAccent,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        BrandIcon(Modifier.size(56.dp))
                         Spacer(Modifier.width(MpkgTheme.spacing.m))
                         Column {
                             Text(
@@ -91,19 +82,27 @@ fun AboutScreen(
                         color = colors.textSecondary,
                         fontSize = MpkgTheme.fontSizes.body
                     )
-                    Spacer(Modifier.height(MpkgTheme.spacing.s))
-                    Text(
-                        text = AppInfo.PROJECT_URL,
-                        color = colors.accent,
-                        fontSize = MpkgTheme.fontSizes.tiny,
-                        textDecoration = TextDecoration.Underline,
-                        modifier = Modifier.clickable { onOpenProjectUrl() }
-                    )
                     Spacer(Modifier.height(MpkgTheme.spacing.m))
-                    Row(horizontalArrangement = Arrangement.spacedBy(MpkgTheme.spacing.s)) {
-                        AppButton("打开项目主页", onOpenProjectUrl, kind = ButtonKind.SECONDARY)
-                        AppButton("检查更新", onCheckUpdate, kind = ButtonKind.SECONDARY)
-                    }
+                    AppButton("检查更新", onCheckUpdate, kind = ButtonKind.SECONDARY)
+                }
+            }
+
+            Spacer(Modifier.height(MpkgTheme.spacing.l))
+            AppCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(MpkgTheme.spacing.m)) {
+                    AboutLink(
+                        title = AppInfo.PROJECT_URL.removePrefix("https://github.com/"),
+                        subtitle = "GitHub 项目主页",
+                        onClick = onOpenProjectUrl,
+                        icon = { Icon(AppIcons.GitHub, "GitHub", Modifier.size(32.dp), tint = colors.textPrimary) }
+                    )
+                    Spacer(Modifier.height(MpkgTheme.spacing.s))
+                    AboutLink(
+                        title = "问题反馈",
+                        subtitle = "可在b站视频评论区提出bug反馈与建议",
+                        onClick = onOpenFeedback,
+                        icon = { Image(painterResource("icons/bilibili.png"), "哔哩哔哩", Modifier.size(36.dp)) }
+                    )
                 }
             }
 
@@ -157,4 +156,23 @@ private fun SectionTitle(text: String) {
         fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(bottom = MpkgTheme.spacing.s, start = MpkgTheme.spacing.xs)
     )
+}
+
+@Composable
+private fun AboutLink(title: String, subtitle: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
+    val colors = MpkgTheme.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { icon() }
+        Spacer(Modifier.width(MpkgTheme.spacing.m))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = colors.textPrimary, fontSize = MpkgTheme.fontSizes.body, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, color = colors.textSecondary, fontSize = MpkgTheme.fontSizes.tiny)
+        }
+        Spacer(Modifier.width(MpkgTheme.spacing.s))
+        Text("↗", color = colors.textTertiary, fontSize = MpkgTheme.fontSizes.title)
+    }
 }

@@ -23,6 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,11 +68,15 @@ fun TaskCard(
 ) {
     val colors = MpkgTheme.colors
     val shape = RoundedCornerShape(MpkgTheme.radius.cardSmall)
+    val currentTask by rememberUpdatedState(task)
+    val currentOpen by rememberUpdatedState(onOpen)
+    val currentSelect by rememberUpdatedState(onSelect)
+    var expandedNote by remember(task.id) { mutableStateOf(false) }
     val doubleTap = remember(task.id) {
         Modifier.pointerInput(task.id) {
             detectTapGestures(
-                onTap = { onSelect() },
-                onDoubleTap = { if (task.status == TaskStatus.DONE) onOpen() }
+                onTap = { currentSelect() },
+                onDoubleTap = { if (currentTask.status == TaskStatus.DONE) currentOpen() }
             )
         }
     }
@@ -138,6 +145,14 @@ fun TaskCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                task.note?.let { note ->
+                    Spacer(Modifier.height(MpkgTheme.spacing.s))
+                    Text(note, color = colors.textSecondary, fontSize = MpkgTheme.fontSizes.tiny,
+                        maxLines = if (expandedNote) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
+                    if (note.length > 100) Text(if (expandedNote) "收起说明" else "查看完整合成说明",
+                        color = colors.accent, fontSize = MpkgTheme.fontSizes.tiny,
+                        modifier = Modifier.clickable { expandedNote = !expandedNote }.padding(vertical = 4.dp))
                 }
             }
             Spacer(Modifier.width(MpkgTheme.spacing.m))

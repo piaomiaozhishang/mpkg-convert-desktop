@@ -278,6 +278,7 @@ object CliMain {
         is OutputPayload.Pixels -> "  ${p.width}x${p.height}"
         is OutputPayload.StreamSlice -> "  包内 ${p.offset}+${p.length}"
         is OutputPayload.Bytes -> ""
+        is OutputPayload.Scene -> "  场景合成 ${p.scene.info.canvasWidth}x${p.scene.info.canvasHeight}"
     }
 
     private fun sizeText(bytes: Long): String = when {

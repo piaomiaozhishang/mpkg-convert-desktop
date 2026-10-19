@@ -142,11 +142,28 @@ class ConversionQueueTest {
         assertEquals(com.mpkg.app.errors.ErrorMessages.NO_CONTENT, updates.last().errorTitle)
     }
 
-    private fun newQueue(outDir: File, updates: ConcurrentLinkedQueue<ConversionTask>): ConversionQueue {
+    @Test fun skippedExistingOutputRemainsLocatable() = runBlocking {
+        val pkg = temp.newFile("skip.mpkg")
+        pkg.writeBytes(makePackage("PKGM0019", listOf("textures/main.tex" to rawTex(8, 8))))
+        val outDir = temp.newFolder("skip-out")
+        val main = requireNotNull(DesktopExtractor.analyzePackage(pkg).main)
+        val existing = File(outDir, main.suggestedName).apply { writeText("keep existing") }
+        val updates = ConcurrentLinkedQueue<ConversionTask>()
+        val queue = newQueue(outDir, updates, com.mpkg.app.export.OverwritePolicy.SKIP)
+        queue.submit(ConversionTask(file = pkg))
+        awaitAnyTask(updates) { it.status == TaskStatus.DONE }
+        val done = updates.last { it.status == TaskStatus.DONE }
+        assertEquals(existing.absolutePath, done.primaryOutputPath)
+        assertTrue(done.outputs.isEmpty())
+        assertEquals("keep existing", existing.readText())
+    }
+
+    private fun newQueue(outDir: File, updates: ConcurrentLinkedQueue<ConversionTask>,
+                         policy: com.mpkg.app.export.OverwritePolicy = com.mpkg.app.export.OverwritePolicy.RENAME): ConversionQueue {
         val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         return ConversionQueue(
             scope = scope,
-            settingsProvider = { AppSettings(outputDir = outDir.absolutePath, concurrency = 2) },
+            settingsProvider = { AppSettings(outputDir = outDir.absolutePath, concurrency = 2, overwritePolicy = policy) },
             onUpdate = { updates.add(it) }
         )
     }

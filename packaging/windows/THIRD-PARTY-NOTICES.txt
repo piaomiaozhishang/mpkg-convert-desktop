@@ -1,0 +1,13 @@
+mpkg 壁纸提取器 — 第三方组件说明
+
+本文件集中说明随软件分发的组件，不属于安装向导中的操作条款。
+
+1. 本项目的代码来源及对应许可声明保留于同目录 LICENSE.txt。
+2. Java Native Access (JNA / jna-platform) 5.6.0 用于调用 Windows 原生文件选择和文件定位接口。
+   JNA 采用 LGPL 2.1 或更高版本 / Apache License 2.0 双重许可。
+   项目：https://github.com/java-native-access/jna
+   完整许可及声明保留在 app/jna-*.jar、app/jna-platform-*.jar 的 META-INF 文件中。
+3. Kotlin、Compose Desktop、kotlinx.coroutines、Skiko、lz4-java 等组件的许可和版权声明随 app 目录中的对应 JAR 分发。
+4. 随附 Java 运行时的组件许可位于 runtime/legal 目录。
+
+上述组件分别遵循其自身许可证；本项目的 MIT 许可不替代第三方组件许可。

@@ -20,6 +20,28 @@ class SettingsStoreTest {
 
     private fun store(): SettingsStore = SettingsStore(File(temp.root, "settings.json"))
 
+    @Test fun legacyUpdateAddressesAreDiscardedWithoutResettingUserPreferences() {
+        val file = File(temp.root, "settings.json")
+        file.writeText("""{
+            "updateCheckUrl":"https://untrusted.invalid/update.json",
+            "updateDownloadUrl":"https://untrusted.invalid/download.exe",
+            "outputDir":"D:/wallpapers", "concurrency":4, "autoCheckUpdate":false,
+            "overwritePolicy":"SKIP", "lastUpdateCheckAt":123, "lastUpdateCheckOk":true
+        }""")
+        val loaded = SettingsStore(file).load()
+        assertEquals("D:/wallpapers", loaded.outputDir)
+        assertEquals(4, loaded.concurrency)
+        assertEquals(OverwritePolicy.SKIP, loaded.overwritePolicy)
+        assertFalse(loaded.autoCheckUpdate)
+        assertEquals(123L, loaded.lastUpdateCheckAt)
+        assertEquals(true, loaded.lastUpdateCheckOk)
+        val saved = file.readText()
+        assertFalse(saved.contains("updateCheckUrl"))
+        assertFalse(saved.contains("updateDownloadUrl"))
+        assertFalse(saved.contains("untrusted.invalid"))
+        assertEquals(loaded, SettingsStore(file).load())
+    }
+
     @Test
     fun `默认值面向零配置可用`() {
         val defaults = AppSettings()
@@ -45,8 +67,6 @@ class SettingsStoreTest {
             reduceMotion = true,
             openOutputWhenDone = true,
             autoCheckUpdate = true,
-            updateCheckUrl = "https://example.com/update.json",
-            updateDownloadUrl = "https://example.com/app.zip",
             lastUpdateCheckAt = 1_700_000_000_000L,
             lastUpdateCheckOk = true,
             ignoredUpdateVersion = "1.0.1",

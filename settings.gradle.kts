@@ -30,4 +30,5 @@ dependencyResolutionManagement {
 rootProject.name = "mpkg-tool"
 
 include(":core")
+include(":scene")
 include(":composeApp")

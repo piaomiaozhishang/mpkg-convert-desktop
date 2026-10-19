@@ -37,6 +37,8 @@ data class ConversionTask(
     val entryCount: Int? = null,
     val isVideo: Boolean = false,
     val outputs: List<TaskOutput> = emptyList(),
+    /** Main result, including an existing file retained by SKIP. */
+    val primaryOutputPath: String? = null,
     val errorTitle: String? = null,
     val errorDetail: String? = null,
     /**

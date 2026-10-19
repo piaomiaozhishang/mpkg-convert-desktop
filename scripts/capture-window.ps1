@@ -7,6 +7,8 @@
 #    而 SetForegroundWindow 在后台进程里经常被系统拒绝。
 param(
     [string]$TitleLike = '*mpkg*',
+    [string]$ProcessName = 'java',
+    [long]$WindowHandle = 0,
     [string]$Out = 'out\app-window.png',
     [int]$MaxHeight = 0
 )
@@ -35,12 +37,12 @@ $SWP_NOMOVE = 0x0002
 $SWP_NOSIZE = 0x0001
 $SWP_SHOWWINDOW = 0x0040
 
-$proc = Get-Process -Name java -ErrorAction SilentlyContinue |
+$proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowTitle -like $TitleLike } |
     Select-Object -First 1
-if (-not $proc) { throw "找不到标题匹配 $TitleLike 的窗口" }
+if (-not $proc -and $WindowHandle -eq 0) { throw "找不到标题匹配 $TitleLike 的窗口" }
 
-$h = $proc.MainWindowHandle
+$h = if ($WindowHandle -ne 0) { [IntPtr]$WindowHandle } else { $proc.MainWindowHandle }
 [DshWin32]::ShowWindow($h, 9) | Out-Null   # SW_RESTORE
 
 if ($MaxHeight -gt 0) {

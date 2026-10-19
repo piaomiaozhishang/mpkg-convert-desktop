@@ -59,7 +59,12 @@ object Exporter {
     /**
      * 写出一个产物，返回实际写入的文件；按策略跳过时返回 null。
      */
-    fun write(item: OutputItem, dir: File, policy: OverwritePolicy): File? {
+    fun write(item: OutputItem, dir: File, policy: OverwritePolicy,
+              progress: (Int, Int, String) -> Unit = { _, _, _ -> },
+              checkActive: () -> Unit = {}): File? {
+        if (item.payload is OutputPayload.Scene) {
+            return SceneExporter.write(item, dir, policy, progress, checkActive)
+        }
         val target = resolveTarget(dir, item.suggestedName, policy) ?: return null
         when (val payload = item.payload) {
             is OutputPayload.Bytes -> {
@@ -67,6 +72,7 @@ object Exporter {
             }
             is OutputPayload.StreamSlice -> streamCopy(payload, target)
             is OutputPayload.Pixels -> PngIo.writeArgb(payload.argb, payload.width, payload.height, target)
+            is OutputPayload.Scene -> error("Scene output must use the scene exporter")
         }
         AppLog.i("已写出 ${target.name} (${target.length()} 字节)")
         return target

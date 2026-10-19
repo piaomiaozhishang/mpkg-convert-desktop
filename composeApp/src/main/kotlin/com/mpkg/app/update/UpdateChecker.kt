@@ -15,7 +15,7 @@ import java.net.URL
  * 远端发布的版本信息（对应 Gitee 上的 update.json）。
  *
  * @param version 远端版本号，与本地 [com.mpkg.app.AppInfo.VERSION] 做数值比较
- * @param downloadUrl 「下载新版本」要打开的地址；为空时回退到设置里的下载地址
+ * @param downloadUrl 发布者提供的下载位置；为空时使用内置回退位置
  * @param notes 更新说明，展示在公告窗里
  * @param force true 时公告窗不可忽略、不可关闭（强制更新，在 update.json 里发 `"force": true`）
  */
@@ -29,10 +29,10 @@ data class UpdateInfo(
 /**
  * 检查更新（走 Gitee，国内可直接访问；GitHub raw 对部分网络环境不通）。
  *
- * 版本文件由用户自行发布，默认地址见 [com.mpkg.app.settings.AppSettings.DEFAULT_UPDATE_CHECK_URL]，
+ * 版本文件由发布者维护，地址见 [UpdateConfig]，
  * 支持两种格式：
  * 1. JSON：`{"version":"1.0.1","downloadUrl":"https://...","notes":"...","force":false}`
- * 2. 纯文本：第一行写版本号（下载地址回到设置里配）
+ * 2. 纯文本：第一行写版本号（下载位置使用内置配置）
  *
  * 任何网络/解析失败都作为异常返回，由调用方决定提示文案；绝不影响主流程。
  */
@@ -46,13 +46,13 @@ object UpdateChecker {
      *
      * @return success + null = 已是最新；success + info = 有新版本；failure = 检查失败
      */
-    suspend fun check(url: String, currentVersion: String): Result<UpdateInfo?> =
+    suspend fun check(currentVersion: String): Result<UpdateInfo?> =
         withContext(Dispatchers.IO) {
             try {
-                val info = fetch(url)
+                val info = fetch(UpdateConfig.CHECK_URL)
                 Result.success(if (isNewer(info.version, currentVersion)) info else null)
             } catch (e: Exception) {
-                AppLog.w("检查更新失败（$url）: ${e.message}")
+                AppLog.w("检查更新失败：${e.javaClass.simpleName}")
                 Result.failure(e)
             }
         }

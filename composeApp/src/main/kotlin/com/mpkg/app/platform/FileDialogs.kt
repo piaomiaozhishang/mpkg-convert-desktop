@@ -10,8 +10,8 @@ import javax.swing.UIManager
 /**
  * 文件与目录选择（任务卡 T2.2 / T2.5）。
  *
- * - 选文件用 `java.awt.FileDialog`：Windows/macOS 上是原生对话框，观感与系统一致；
- * - 选目录用 `JFileChooser(DIRECTORIES_ONLY)`：FileDialog 在 Windows 上无法选目录。
+ * - Windows 文件和目录均使用现代 IFileOpenDialog，带系统导航和固定位置；
+ * - 其他平台沿用 AWT 文件对话框和 Swing 目录选择器。
  */
 object FileDialogs {
 
@@ -22,6 +22,7 @@ object FileDialogs {
 
     /** 多选包文件；取消返回空列表。 */
     fun choosePackageFiles(parent: java.awt.Window?): List<File> {
+        if (PlatformPaths.isWindows) return WindowsShell.choose(parent, folders = false)
         // Compose 的 window（ComposeWindow）是 java.awt.Window 而不是 Frame：
         // 直接 `parent as? Frame` 会得到 null，建出无主对话框——不随应用窗口居中、
         // 可能被应用窗口盖住、任务栏里多出一个条目，观感就像一个脱节的小窗口。
@@ -86,6 +87,7 @@ object FileDialogs {
 
     /** 选择输出目录；取消返回 null。 */
     fun chooseOutputDir(parent: java.awt.Window?, current: File): File? {
+        if (PlatformPaths.isWindows) return WindowsShell.choose(parent, folders = true, current).firstOrNull()
         return try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
         } catch (e: Exception) {

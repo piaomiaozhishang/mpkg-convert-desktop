@@ -20,7 +20,7 @@
 
 #define MyAppName     "mpkg 壁纸提取器"
 #define MyAppNameEn   "mpkg-tool"
-#define MyAppVersion  "1.0.0"
+#define MyAppVersion  "1.0.1"
 #define MyAppExe      "mpkg-tool.exe"
 #define MyAppURL      "https://github.com/piaomiaozhishang/mpkg-convert-desktop"
 
@@ -32,7 +32,7 @@ AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher=piaomiaozhishang
 AppComments=解析 Wallpaper Engine 导出的 .mpkg / .pkg 壁纸包，提取 4K 原图与 MP4
-AppSupportURL={#MyAppURL}
+AppSupportURL=https://b23.tv/JWQpitx
 AppUpdatesURL={#MyAppURL}
 VersionInfoVersion={#MyAppVersion}
 VersionInfoProductName={#MyAppName}
@@ -43,7 +43,7 @@ DefaultGroupName={#MyAppName}
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExe}
 ; 许可协议页（MIT）
-LicenseFile=..\..\LICENSE
+LicenseFile=安装许可.txt
 ; 安装包自身的图标
 SetupIconFile=..\..\composeApp\src\main\resources\icons\app.ico
 OutputDir=..\..\composeApp\build\compose\binaries\main\dist
@@ -75,6 +75,10 @@ Name: "startmenuicon"; Description: "{cm:CreateStartMenuShortcut}"; GroupDescrip
 [Files]
 ; app-image 整目录：mpkg-tool.exe 启动器 + app/（jar 与资源）+ runtime/（私有 JRE）
 Source: "..\..\composeApp\build\compose\binaries\main\app\mpkg-tool\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "安装许可.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\docs\场景特效可行性与本次修复.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: startmenuicon

@@ -139,7 +139,11 @@ fun WindowScope.MpkgApp(app: AppViewModel, convert: ConvertViewModel) {
 
     fun pickFiles() {
         AppLog.i("打开文件选择对话框")
-        val files = FileDialogs.choosePackageFiles(window)
+        val files = runCatching { FileDialogs.choosePackageFiles(window) }.getOrElse {
+            AppLog.e("打开系统文件选择器失败", it)
+            app.showToast("无法打开系统文件选择器，请重试或拖入文件")
+            emptyList()
+        }
         AppLog.i("文件选择对话框返回 ${files.size} 个文件")
         if (files.isNotEmpty()) convert.addFiles(files)
     }
@@ -151,6 +155,9 @@ fun WindowScope.MpkgApp(app: AppViewModel, convert: ConvertViewModel) {
     fun revealFile(file: File) {
         if (!DesktopIntegration.revealInFileManager(file)) app.showToast("无法打开文件所在位置")
     }
+
+    fun pickOutputDir(): File? = runCatching { FileDialogs.chooseOutputDir(window, File(settings.outputDir)) }
+        .getOrElse { app.showToast("无法打开系统目录选择器，请重试"); null }
 
     fun openProjectUrl() {
         val url = com.mpkg.app.AppInfo.PROJECT_URL
@@ -247,7 +254,7 @@ fun WindowScope.MpkgApp(app: AppViewModel, convert: ConvertViewModel) {
                             selectedId = selectedId,
                             onPick = ::pickFiles,
                             onChangeOutputDir = {
-                                FileDialogs.chooseOutputDir(window, File(settings.outputDir))?.let { dir ->
+                                pickOutputDir()?.let { dir ->
                                     app.updateSettings { it.copy(outputDir = dir.absolutePath) }
                                     app.showToast("输出目录已更改为 ${dir.absolutePath}")
                                 }
@@ -262,8 +269,14 @@ fun WindowScope.MpkgApp(app: AppViewModel, convert: ConvertViewModel) {
                             onTaskCancel = convert::cancel,
                             onTaskRemove = convert::remove,
                             onTaskRetry = convert::retry,
-                            onTaskOpen = { task -> task.outputs.firstOrNull()?.let { openFile(File(it.path)) } },
-                            onTaskReveal = { task -> task.outputs.firstOrNull()?.let { revealFile(File(it.path)) } }
+                            onTaskOpen = { task ->
+                                val path = task.primaryOutputPath ?: task.outputs.firstOrNull { !it.isPreview }?.path
+                                if (path != null) openFile(File(path)) else app.showToast("没有可打开的输出文件")
+                            },
+                            onTaskReveal = { task ->
+                                val path = task.primaryOutputPath ?: task.outputs.firstOrNull { !it.isPreview }?.path
+                                revealFile(File(path ?: settings.outputDir))
+                            }
                         )
 
                         Screen.HISTORY -> HistoryScreen(
@@ -281,7 +294,7 @@ fun WindowScope.MpkgApp(app: AppViewModel, convert: ConvertViewModel) {
                             settings = settings,
                             onChange = { transform -> app.updateSettings(transform = transform) },
                             onChooseOutputDir = {
-                                FileDialogs.chooseOutputDir(window, File(settings.outputDir))?.let { dir ->
+                                pickOutputDir()?.let { dir ->
                                     app.updateSettings { it.copy(outputDir = dir.absolutePath) }
                                 }
                             },
@@ -304,7 +317,12 @@ fun WindowScope.MpkgApp(app: AppViewModel, convert: ConvertViewModel) {
                                 app.showToast("诊断信息已复制到剪贴板")
                             },
                             onOpenProjectUrl = ::openProjectUrl,
-                            onCheckUpdate = { app.checkForUpdate(manual = true) }
+                            onCheckUpdate = { app.checkForUpdate(manual = true) },
+                            onOpenFeedback = {
+                                if (!DesktopIntegration.openUrl(com.mpkg.app.AppInfo.FEEDBACK_URL)) {
+                                    app.showToast("无法打开浏览器，请稍后重试")
+                                }
+                            }
                         )
                     }
                 }
@@ -396,7 +414,7 @@ private fun DragAndDropEvent.readDroppedFiles(): List<File> {
 /**
  * 更新公告弹窗。
  *
- * 「下载新版本」打开下载地址（update.json 的 downloadUrl → 设置里的下载地址 → 项目主页）；
+ * 「下载新版本」打开发布者指定的下载位置；
  * 「忽略此版本（12 小时内不再提醒）」把版本号和时间写进设置，12 小时后自动恢复提醒，
  * 手动点「检查更新」不受忽略影响。update.json 里发 `"force": true` 时进入强制更新：
  * 忽略钮隐藏、点窗外也关不掉。

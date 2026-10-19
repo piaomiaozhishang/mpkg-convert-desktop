@@ -9,6 +9,7 @@ import com.mpkg.app.settings.AppSettings
 import com.mpkg.app.settings.SettingsStore
 import com.mpkg.app.settings.WindowState
 import com.mpkg.app.update.UpdateChecker
+import com.mpkg.app.update.UpdateConfig
 import com.mpkg.app.update.UpdateInfo
 import com.mpkg.app.util.AppLog
 import kotlinx.coroutines.CoroutineScope
@@ -111,7 +112,6 @@ class AppViewModel(private val scope: CoroutineScope) {
         if (!manual && !settings.autoCheckUpdate) return
         updateCheckJob = scope.launch {
             val result = UpdateChecker.check(
-                url = settings.effectiveUpdateCheckUrl(),
                 currentVersion = AppInfo.VERSION
             )
             val now = System.currentTimeMillis()
@@ -133,7 +133,7 @@ class AppViewModel(private val scope: CoroutineScope) {
                 AppLog.i("发现新版本 ${info.version}，弹出更新公告")
             }.onFailure {
                 updateSettings(quiet = true) { it.copy(lastUpdateCheckAt = now, lastUpdateCheckOk = false) }
-                if (manual) showToast("检查更新失败：请检查网络或更新地址")
+                if (manual) showToast("暂时无法检查更新，请检查网络后重试")
             }
         }
     }
@@ -152,13 +152,13 @@ class AppViewModel(private val scope: CoroutineScope) {
         showToast("已忽略版本 ${info.version}，12 小时内不再自动提醒")
     }
 
-    /** 「下载新版本」：优先 update.json 的 downloadUrl，其次设置里的下载地址，最后项目主页。 */
+    /** 下载位置由发布者的版本清单和内置配置统一决定。 */
     fun downloadUpdate(info: UpdateInfo) {
-        val url = info.downloadUrl ?: _settings.value.updateDownloadUrl.ifBlank { null } ?: AppInfo.PROJECT_URL
+        val url = UpdateConfig.downloadUrl(info)
         if (DesktopIntegration.openUrl(url)) {
             showToast("已在浏览器中打开下载页面")
         } else {
-            showToast("无法打开浏览器，请手动访问：$url")
+            showToast("无法打开下载页面，请检查默认浏览器后重试")
         }
         _updateAvailable.value = null
     }

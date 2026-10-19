@@ -68,16 +68,17 @@ object DesktopIntegration {
 
     /** 在文件管理器里定位到该文件（Windows 用 explorer /select）。 */
     fun revealInFileManager(file: File): Boolean {
-        val target = if (file.exists()) file else file.parentFile ?: return false
+        val absolute = file.absoluteFile.normalize()
+        val target = generateSequence(absolute) { it.parentFile }.firstOrNull { it.exists() } ?: return false
         return try {
             when {
                 PlatformPaths.isWindows && target.isFile ->
-                    ProcessBuilder("explorer.exe", "/select,${target.absolutePath}").start().let { true }
+                    WindowsShell.reveal(target)
                 else -> openDirectory(if (target.isFile) target.parentFile else target)
             }
         } catch (e: Exception) {
             AppLog.w("定位文件失败: ${e.message}")
-            false
+            openDirectory(if (target.isFile) target.parentFile else target)
         }
     }
 
